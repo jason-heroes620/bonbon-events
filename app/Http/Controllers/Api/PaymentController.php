@@ -30,7 +30,7 @@ class PaymentController extends Controller
             ?? '');
     }
 
-    private function ipay88Signature(string $refNo, string $amount, string $currency, string $status): string
+    private function ipay88Signature(string $refNo, string $amount, string $currency): string
     {
         $merchantKey = $this->ipay88MerchantKey();
         $merchantCode = $this->ipay88MerchantCode();
@@ -40,9 +40,6 @@ class PaymentController extends Controller
         }
 
         $raw = $merchantKey . $merchantCode . $refNo . str_replace([".", ','], '', $amount) . $currency . 'Events';
-        if ($status !== null) {
-            $raw = $merchantKey . $merchantCode . $refNo . str_replace([".", ','], '', $amount) . $currency . $status;
-        }
 
         return hash_hmac('sha512', $raw, $merchantKey);
     }
