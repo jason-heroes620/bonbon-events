@@ -1,0 +1,329 @@
+import {
+    Home,
+    LogOut,
+    Package,
+    Sparkles,
+    Settings,
+    ChevronDown,
+    User,
+    DollarSign,
+    Users,
+} from "lucide-react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarMenuSub,
+    SidebarMenuSubButton,
+    SidebarMenuSubItem,
+    SidebarFooter,
+    SidebarHeader,
+} from "@/components/ui/sidebar";
+import { Link, usePage } from "@inertiajs/react";
+import { cn } from "@/lib/utils";
+
+const allItems: {
+    title: string;
+    url?: string;
+    icon: ComponentType<any>;
+    items?: { title: string; url: string }[];
+}[] = [
+    {
+        title: "Dashboard",
+        url: "/dashboard",
+        icon: Home,
+    },
+    {
+        title: "Applications",
+        icon: Package,
+        items: [
+            {
+                title: "All Applications",
+                url: "/applications",
+            },
+        ],
+    },
+    {
+        title: "Events",
+        icon: Sparkles,
+        items: [
+            {
+                title: "All Events",
+                url: "/events",
+            },
+        ],
+    },
+    {
+        title: "Finance",
+        icon: DollarSign,
+        items: [
+            {
+                title: "Orders",
+                url: "/orders",
+            },
+            {
+                title: "Invoices",
+                url: "/invoices",
+            },
+        ],
+    },
+    {
+        title: "Vendors",
+        icon: Users,
+        items: [
+            {
+                title: "All Vendors",
+                url: "/vendors",
+            },
+        ],
+    },
+    {
+        title: "Users",
+        icon: User,
+        items: [
+            {
+                title: "All Users",
+                url: "/users",
+            },
+        ],
+    },
+    {
+        title: "Configurations",
+        icon: Settings,
+        items: [
+            {
+                title: "Locations",
+                url: "/locations",
+            },
+            {
+                title: "Booth Types",
+                url: "/booth-types",
+            },
+            {
+                title: "Booths",
+                url: "/booths",
+            },
+            {
+                title: "Categories",
+                url: "/categories",
+            },
+            {
+                title: "Deposits",
+                url: "/deposits",
+            },
+            {
+                title: "Invoice No",
+                url: "/invoice-nos",
+            },
+        ],
+    },
+];
+
+export function AppSidebar() {
+    const page = usePage();
+    const currentPath = (page.url ?? "/").split("?")[0];
+    const role = (page.props as any)?.auth?.user?.role as string | undefined;
+
+    const items = useMemo(() => {
+        if (role === "vendor") {
+            return allItems
+                .filter((item) =>
+                    ["Dashboard", "Vendors", "Vouchers"].includes(item.title),
+                )
+                .map((item) => {
+                    if (item.title === "Vendors" && item.items?.length) {
+                        return {
+                            ...item,
+                            items: item.items.map((sub) => ({
+                                ...sub,
+                                title: "My Vendors",
+                            })),
+                        };
+                    }
+                    if (item.title === "Vouchers" && item.items?.length) {
+                        return {
+                            ...item,
+                            items: item.items.map((sub) => ({
+                                ...sub,
+                                title: "My Vouchers",
+                            })),
+                        };
+                    }
+                    return item;
+                });
+        }
+
+        return allItems;
+    }, [role]);
+
+    const isActiveUrl = (url: string) => {
+        if (currentPath === url) return true;
+        if (url !== "/" && currentPath.startsWith(`${url}/`)) return true;
+        return false;
+    };
+
+    const activeGroupTitle = useMemo(() => {
+        for (const item of items) {
+            const hasSubItems =
+                Array.isArray(item.items) && item.items.length > 0;
+            if (!hasSubItems) continue;
+            if (item.items!.some((subItem) => isActiveUrl(subItem.url))) {
+                return item.title;
+            }
+        }
+        return null;
+    }, [currentPath, items]);
+
+    const [openGroupTitle, setOpenGroupTitle] = useState<string | null>(
+        activeGroupTitle,
+    );
+
+    useEffect(() => {
+        setOpenGroupTitle(activeGroupTitle);
+    }, [activeGroupTitle]);
+
+    return (
+        <Sidebar>
+            <SidebarHeader>
+                <div className="flex items-center gap-2 px-2 py-1">
+                    <div className="bg-[#F90606] p-1 rounded-md text-white">
+                        <img
+                            src="/bonbon-logo.png"
+                            alt="Bonbon"
+                            className="w-8 h-8"
+                        />
+                    </div>
+                    <span className="font-semibold text-lg">Bonbon</span>
+                </div>
+            </SidebarHeader>
+            <SidebarContent>
+                <SidebarGroup>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            {items.map((item) => {
+                                const hasSubItems =
+                                    Array.isArray(item.items) &&
+                                    item.items.length > 0;
+                                const isActive =
+                                    (typeof item.url === "string" &&
+                                        isActiveUrl(item.url)) ||
+                                    (hasSubItems &&
+                                        item.items!.some((subItem) =>
+                                            isActiveUrl(subItem.url),
+                                        ));
+                                const isExpanded =
+                                    hasSubItems &&
+                                    openGroupTitle === item.title;
+
+                                return (
+                                    <SidebarMenuItem key={item.title}>
+                                        {typeof item.url === "string" ? (
+                                            <SidebarMenuButton
+                                                isActive={isActive}
+                                                tooltip={item.title}
+                                                render={
+                                                    <Link href={item.url}>
+                                                        <item.icon />
+                                                        <span>
+                                                            {item.title}
+                                                        </span>
+                                                    </Link>
+                                                }
+                                            />
+                                        ) : (
+                                            <SidebarMenuButton
+                                                isActive={isActive}
+                                                tooltip={item.title}
+                                                type="button"
+                                                onClick={() =>
+                                                    setOpenGroupTitle((prev) =>
+                                                        prev === item.title
+                                                            ? null
+                                                            : item.title,
+                                                    )
+                                                }
+                                                aria-expanded={Boolean(
+                                                    isExpanded,
+                                                )}
+                                            >
+                                                <item.icon />
+                                                <span>{item.title}</span>
+                                                {hasSubItems ? (
+                                                    <ChevronDown
+                                                        className={cn(
+                                                            "ml-auto transition-transform",
+                                                            isExpanded
+                                                                ? "rotate-180"
+                                                                : "rotate-0",
+                                                        )}
+                                                    />
+                                                ) : null}
+                                            </SidebarMenuButton>
+                                        )}
+
+                                        {hasSubItems && isExpanded ? (
+                                            <SidebarMenuSub>
+                                                {item.items!.map((subItem) => {
+                                                    // const SubIcon = subItem.icon
+                                                    const isSubActive =
+                                                        isActiveUrl(
+                                                            subItem.url,
+                                                        );
+
+                                                    return (
+                                                        <SidebarMenuSubItem
+                                                            key={subItem.title}
+                                                        >
+                                                            <SidebarMenuSubButton
+                                                                isActive={
+                                                                    isSubActive
+                                                                }
+                                                                render={
+                                                                    <Link
+                                                                        href={
+                                                                            subItem.url
+                                                                        }
+                                                                    >
+                                                                        <span>
+                                                                            {
+                                                                                subItem.title
+                                                                            }
+                                                                        </span>
+                                                                    </Link>
+                                                                }
+                                                            />
+                                                        </SidebarMenuSubItem>
+                                                    );
+                                                })}
+                                            </SidebarMenuSub>
+                                        ) : null}
+                                    </SidebarMenuItem>
+                                );
+                            })}
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            </SidebarContent>
+            <SidebarFooter>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            tooltip="Logout"
+                            render={
+                                <Link href="/logout" method="post" as="button">
+                                    <LogOut />
+                                    <span>Logout</span>
+                                </Link>
+                            }
+                        />
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarFooter>
+        </Sidebar>
+    );
+}

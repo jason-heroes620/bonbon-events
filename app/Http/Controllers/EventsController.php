@@ -1,0 +1,278 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Deposits;
+use App\Models\EventDeposits;
+use App\Models\EventBooths;
+use App\Models\BoothTypes;
+use App\Models\Booths;
+use App\Models\Events;
+use App\Models\Locations;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class EventsController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $search = $request->string('search')->toString();
+
+        $events = Events::query()
+            ->with(['location'])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('event_name', 'like', "%{$search}%")
+                        ->orWhere('venue', 'like', "%{$search}%")
+                        ->orWhereHas('location', function ($query) use ($search) {
+                            $query->where('location_name', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->orderByDesc('event_start_date')
+            ->paginate(10)
+            ->withQueryString();
+
+        return Inertia::render('events/events', [
+            'events' => $events,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function create(): Response
+    {
+        $locations = Locations::query()
+            ->orderBy('location_name', 'asc')
+            ->get(['location_id', 'location_name']);
+
+        $deposits = Deposits::query()
+            ->where('deposit_status', 'active')
+            ->where('deposit_end_date', '>=', now())
+            ->orWhere('deposit_end_date', null)
+            ->orderBy('deposit_amount', 'asc')
+            ->get(['deposit_id', 'deposit_description', 'deposit_amount']);
+
+        $boothTypes = BoothTypes::query()
+            ->where('is_active', true)
+            ->orderBy('booth_type_name', 'asc')
+            ->get(['booth_type_id', 'booth_type_name']);
+
+        $booths = Booths::query()
+            ->where('is_active', true)
+            ->orderBy('booth_name', 'asc')
+            ->get(['booth_id', 'booth_type_id', 'booth_name']);
+
+        return Inertia::render('events/create', [
+            'locations' => $locations,
+            'deposits' => $deposits,
+            'boothTypes' => $boothTypes,
+            'booths' => $booths,
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'event_name' => ['required', 'string', 'max:255'],
+            'event_description' => ['nullable', 'string', 'max:255'],
+            'event_date' => ['required', 'string', 'max:255'],
+            'event_time' => ['required', 'string', 'max:255'],
+            'location_id' => ['required', 'uuid', 'exists:locations,location_id'],
+            'venue' => ['nullable', 'string', 'max:255'],
+            'event_booth_layout' => ['nullable', 'image', 'max:5120'],
+            'event_start_date' => ['required', 'date'],
+            'event_end_date' => ['required', 'date', 'after_or_equal:event_start_date'],
+            'require_deposit' => ['nullable', 'boolean'],
+            'deposit_id' => ['nullable', 'uuid', 'exists:deposits,deposit_id'],
+            'is_active' => ['nullable', 'boolean'],
+            'booths' => ['nullable', 'array'],
+            'booths.*.booth_id' => ['required', 'uuid', 'exists:booths,booth_id'],
+            'booths.*.booth_price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $event = Events::create([
+            'event_name' => $validated['event_name'],
+            'event_description' => $validated['event_description'] ?? null,
+            'event_date' => $validated['event_date'],
+            'event_time' => $validated['event_time'],
+            'location_id' => $validated['location_id'],
+            'venue' => $validated['venue'] ?? null,
+            'event_start_date' => $validated['event_start_date'],
+            'event_end_date' => $validated['event_end_date'],
+            'require_deposit' => (bool) ($validated['require_deposit'] ?? true),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
+        ]);
+
+        if ($request->hasFile('event_booth_layout')) {
+            $path = $request->file('event_booth_layout')->storePublicly('event_booth_layouts', 'public');
+            $event->update([
+                'event_booth_layout' => "/storage/{$path}",
+            ]);
+        }
+
+        if ($validated['require_deposit'] ?? false) {
+            $deposit = Deposits::query()->find($validated['deposit_id']);
+            EventDeposits::create([
+                'event_id' => $event->event_id,
+                'deposit_id' => $deposit->deposit_id,
+            ]);
+        }
+
+        if (!empty($validated['booths'])) {
+            foreach ($validated['booths'] as $booth) {
+                EventBooths::create([
+                    'event_id' => $event->event_id,
+                    'booth_id' => $booth['booth_id'],
+                    'booth_price' => $booth['booth_price'],
+                    'occupied' => false,
+                    'is_active' => true,
+                ]);
+            }
+        }
+
+        return redirect('/events');
+    }
+
+    public function edit(Events $event): Response
+    {
+        $locations = Locations::query()
+            ->orderBy('location_name', 'asc')
+            ->get(['location_id', 'location_name']);
+
+        $deposits = Deposits::query()
+            ->where('deposit_status', 'active')
+            ->where('deposit_end_date', '>=', now())
+            ->orWhere('deposit_end_date', null)
+            ->orderBy('deposit_amount', 'asc')
+            ->get(['deposit_id', 'deposit_description', 'deposit_amount']);
+
+        $boothTypes = BoothTypes::query()
+            ->where('is_active', true)
+            ->orderBy('booth_type_name', 'asc')
+            ->get(['booth_type_id', 'booth_type_name']);
+
+        $booths = Booths::query()
+            ->where('is_active', true)
+            ->orderBy('booth_name', 'asc')
+            ->get(['booth_id', 'booth_type_id', 'booth_name']);
+
+        $deposit_id = EventDeposits::query()->where('event_id', $event->event_id)->first()->deposit_id ?? null;
+
+        $event->deposit_id = $deposit_id;
+
+        $eventBooths = EventBooths::query()
+            ->where('event_id', $event->event_id)
+            ->get(['booth_id', 'booth_price']);
+
+        $event->booths = $eventBooths;
+
+        return Inertia::render('events/[id]', [
+            'event' => $event,
+            'locations' => $locations,
+            'deposits' => $deposits,
+            'boothTypes' => $boothTypes,
+            'booths' => $booths,
+        ]);
+    }
+
+    public function update(Request $request, Events $event)
+    {
+        $validated = $request->validate([
+            'event_name' => ['required', 'string', 'max:255'],
+            'event_description' => ['nullable', 'string', 'max:255'],
+            'event_date' => ['required', 'string', 'max:255'],
+            'event_time' => ['required', 'string', 'max:255'],
+            'location_id' => ['required', 'uuid', 'exists:locations,location_id'],
+            'venue' => ['nullable', 'string', 'max:255'],
+            'event_booth_layout' => ['nullable', 'image', 'max:5120'],
+            'event_start_date' => ['required', 'date'],
+            'event_end_date' => ['required', 'date', 'after_or_equal:event_start_date'],
+            'require_deposit' => ['nullable', 'boolean'],
+            'deposit_id' => ['nullable', 'uuid', 'exists:deposits,deposit_id'],
+            'is_active' => ['nullable', 'boolean'],
+            'booths' => ['nullable', 'array'],
+            'booths.*.booth_id' => ['required', 'uuid', 'exists:booths,booth_id'],
+            'booths.*.booth_price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $event->update([
+            'event_name' => $validated['event_name'],
+            'event_description' => $validated['event_description'] ?? null,
+            'event_date' => $validated['event_date'],
+            'event_time' => $validated['event_time'],
+            'location_id' => $validated['location_id'],
+            'venue' => $validated['venue'] ?? null,
+            'event_start_date' => $validated['event_start_date'],
+            'event_end_date' => $validated['event_end_date'],
+            'require_deposit' => (bool) ($validated['require_deposit'] ?? false),
+            'is_active' => (bool) ($validated['is_active'] ?? false),
+        ]);
+
+        if ($request->hasFile('event_booth_layout')) {
+            $path = $request->file('event_booth_layout')->storePublicly('event_booth_layouts', 'public');
+            $event->update([
+                'event_booth_layout' => "/storage/{$path}",
+            ]);
+        }
+
+        if ($validated['require_deposit'] ?? false) {
+            $deposit = Deposits::query()->find($validated['deposit_id']);
+            EventDeposits::create([
+                'event_id' => $event->event_id,
+                'deposit_id' => $deposit->deposit_id,
+            ]);
+        }
+
+        $existingBooths = EventBooths::query()->where('event_id', $event->event_id)->get();
+        $existingBoothIds = $existingBooths->pluck('booth_id')->toArray();
+
+        $newBooths = $validated['booths'] ?? [];
+        $newBoothIds = array_column($newBooths, 'booth_id');
+
+        $boothsToDelete = array_diff($existingBoothIds, $newBoothIds);
+        if (!empty($boothsToDelete)) {
+            EventBooths::query()->where('event_id', $event->event_id)->whereIn('booth_id', $boothsToDelete)->delete();
+        }
+
+        foreach ($newBooths as $newBooth) {
+            $existing = $existingBooths->firstWhere('booth_id', $newBooth['booth_id']);
+            if ($existing) {
+                if ($existing->booth_price != $newBooth['booth_price']) {
+                    $existing->update(['booth_price' => $newBooth['booth_price']]);
+                }
+            } else {
+                EventBooths::create([
+                    'event_id' => $event->event_id,
+                    'booth_id' => $newBooth['booth_id'],
+                    'booth_price' => $newBooth['booth_price'],
+                    'occupied' => false,
+                    'is_active' => true,
+                ]);
+            }
+        }
+
+        return redirect()->back()->with('success', "Event updated.");
+    }
+
+    public function destroy(Events $event)
+    {
+        Events::query()->where('event_id', $event->event_id)->delete();
+
+        return redirect('/events');
+    }
+
+    public function eventsList(Request $request)
+    {
+        $events = Events::query()
+            ->where('is_active', true)
+            ->where('event_end_date', '>=', date('Y-m-d'))
+            ->orderBy('event_start_date', 'asc')
+            ->get(['event_id', 'event_name', 'event_date', 'event_time', 'venue', 'event_image', 'event_start_date']);
+
+        return response()->json($events);
+    }
+}
