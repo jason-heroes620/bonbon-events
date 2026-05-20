@@ -63,7 +63,7 @@ class PaymentsController extends Controller
             return '';
         }
 
-        $raw = $merchantKey . $merchantCode . $refNo . $amount . $currency;
+        $raw = $merchantKey . $merchantCode . $refNo . str_replace([".", ','], '', $amount) . $currency;
         Log::info('IPAY88 Raw Signature: ' . $raw);
         return hash_hmac('sha512', $raw, $merchantKey);
     }
