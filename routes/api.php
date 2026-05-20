@@ -6,4 +6,4 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/payments/backend', [PaymentController::class, 'backend'])->name('ipay88.backend');
 
-Route::post('/payments/{refNo}', [PaymentController::class, 'payment']);
+Route::get('/payments/{refNo}', [PaymentController::class, 'payment']);
