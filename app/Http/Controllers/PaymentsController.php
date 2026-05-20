@@ -11,6 +11,7 @@ use App\Models\Payments;
 use App\Models\Vendors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -63,6 +64,7 @@ class PaymentsController extends Controller
         }
 
         $raw = $merchantKey . $merchantCode . $refNo . $amount . $currency;
+        Log::info('IPAY88 Raw Signature: ' . $raw);
         return hash_hmac('sha512', $raw, $merchantKey);
     }
 
