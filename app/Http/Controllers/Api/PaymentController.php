@@ -11,6 +11,7 @@ use App\Models\Orders;
 use App\Models\Payments;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class PaymentController extends Controller
@@ -44,6 +45,7 @@ class PaymentController extends Controller
 
     public function backend(Request $request)
     {
+        Log::info('receive post');
         $merchantCode = $request->string('MerchantCode')->toString();
         $refNo = $request->string('RefNo')->toString();
         $amount = $request->string('Amount')->toString();
@@ -123,9 +125,9 @@ class PaymentController extends Controller
         return response('RECEIVEOK', 200);
     }
 
-    public function payment(Request $request)
+    public function payment(Request $request, string $refNo)
     {
-        $order = Orders::query()->where('order_no', $request->RefNo)->first();
+        $order = Orders::query()->where('order_no', $refNo)->first();
         $invoice = Invoices::query()->where('order_id', $order->order_id)->first();
         $items = OrderItems::query()
             ->where('order_id', $order->order_id)
