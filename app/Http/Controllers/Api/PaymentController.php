@@ -30,7 +30,7 @@ class PaymentController extends Controller
             ?? '');
     }
 
-    private function ipay88Signature(string $refNo, string $amount, string $currency): string
+    private function ipay88Signature(string $refNo, string $amount, string $currency, string $status = null): string
     {
         $merchantKey = $this->ipay88MerchantKey();
         $merchantCode = $this->ipay88MerchantCode();
@@ -40,6 +40,10 @@ class PaymentController extends Controller
         }
 
         $raw = $merchantKey . $merchantCode . $refNo . str_replace([".", ','], '', $amount) . $currency . 'Events';
+        if ($status !== null) {
+            $raw = $merchantKey . $merchantCode . $refNo . str_replace([".", ','], '', $amount) . $currency . $status;
+        }
+
         return hash_hmac('sha512', $raw, $merchantKey);
     }
 
@@ -72,7 +76,6 @@ class PaymentController extends Controller
                 'transaction_id' => $transactionId,
                 'payment_date' => $paymentDate,
                 'issuing_bank' => $issuingBank,
-                'cc_last4' => $ccNumber !== '' ? substr($ccNumber, -4) : null,
             ]);
 
             if ($merchantCode === '' || $refNo === '') {
@@ -90,7 +93,7 @@ class PaymentController extends Controller
                 return response('INVALID', 400);
             }
 
-            $expectedSignature = $this->ipay88Signature($refNo, $amount, $currency);
+            $expectedSignature = $this->ipay88Signature($refNo, $amount, $currency, $status);
             $signatureOk = $expectedSignature !== '' && hash_equals($expectedSignature, $signature);
             if (!$signatureOk && !env('IPAY88_SKIP_SIGNATURE_VERIFY', false)) {
                 Log::warning('ipay88.backend.signature_mismatch', [
