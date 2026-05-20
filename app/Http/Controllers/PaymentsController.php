@@ -217,8 +217,8 @@ class PaymentsController extends Controller
         $amount = number_format((float) $order->total_price, 2, '.', '');
         $refNo = $order->order_no;
 
-        $responseUrl = rtrim((string) config('services.ipay88.host_url'), '/') . '/ipay88/response';
-        $backendUrl = rtrim((string) config('services.ipay88.host_url'), '/') . '/ipay88/backend';
+        $responseUrl = rtrim((string) config('services.ipay88.host_url'), '/') . '/api/payments/frontend-callback';
+        $backendUrl = rtrim((string) config('services.ipay88.host_url'), '/') . '/api/payments/backend-callback';
 
         $signature = $this->ipay88Signature($refNo, $amount, $currency);
         if ($signature === '') {
