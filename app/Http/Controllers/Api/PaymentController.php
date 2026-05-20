@@ -224,21 +224,8 @@ class PaymentController extends Controller
             return $existing;
         }
 
-        $year = (string) now()->year;
         $sequence = InvoiceNo::query()
-            ->where('invoice_year', $year)
-            ->lockForUpdate()
-            ->orderByDesc('created_at')
             ->first();
-
-        if (!$sequence) {
-            $sequence = InvoiceNo::create([
-                'invoice_year' => $year,
-                'prefix' => 'INV',
-                'invoice_no' => '0',
-                'suffix' => '0',
-            ]);
-        }
 
         $current = (int) preg_replace('/\D+/', '', (string) $sequence->invoice_no);
         $next = max(0, $current) + 1;
@@ -248,8 +235,7 @@ class PaymentController extends Controller
         ]);
 
         $invoiceNo = $sequence->prefix
-            . str_pad((string) $next, 8, '0', STR_PAD_LEFT)
-            . ($sequence->suffix && $sequence->suffix !== '0' ? $sequence->suffix : '');
+            . str_pad((string) $next, strlen($sequence->length), $sequence->suffix, STR_PAD_LEFT);
 
         return Invoices::create([
             'order_id' => $order->order_id,
