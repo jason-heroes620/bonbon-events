@@ -169,7 +169,6 @@ class PaymentController extends Controller
 
     public function payment(Request $request, string $refNo)
     {
-        Log::info('ref no', $refNo);
         $order = Orders::query()->where('order_no', $refNo)->first();
         Log::info($order);
         $invoice = Invoices::query()->where('order_id', $order->order_id)->first();
