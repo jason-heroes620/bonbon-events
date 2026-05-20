@@ -249,6 +249,7 @@ class PaymentsController extends Controller
             'UserContact' => $userContact,
             'Remark' => $application->application_code,
             'Signature' => $signature,
+            'Xfield1' => 'Events',
             'ResponseURL' => $responseUrl,
             'BackendURL' => $backendUrl,
         ];
