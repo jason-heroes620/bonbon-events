@@ -45,84 +45,137 @@ class PaymentController extends Controller
 
     public function backend(Request $request)
     {
-        Log::info('receive post');
-        $merchantCode = $request->string('MerchantCode')->toString();
-        $refNo = $request->string('RefNo')->toString();
-        $amount = $request->string('Amount')->toString();
-        $currency = $request->string('Currency')->toString();
-        $status = $request->string('Status')->toString();
-        $signature = $request->string('Signature')->toString();
-        $paymentDate = $request->string('TranDate');
-        $issuing_bank = $request->string('S_bankname')->toString();
-        $cc_name = $request->string('CCName')->toString();
-        $cc_number = $request->string('CCNo')->toString();
+        try {
+            $merchantCode = $request->string('MerchantCode')->toString();
+            $refNo = $request->string('RefNo')->toString();
+            $amountRaw = $request->string('Amount')->toString();
+            $currency = $request->string('Currency')->toString();
+            $status = $request->string('Status')->toString();
+            $signature = $request->string('Signature')->toString();
+            $paymentDate = $request->string('TranDate')->toString();
+            $transactionId = $request->string('TransId')->toString();
+            $issuingBank = $request->string('S_bankname')->toString();
+            $ccName = $request->string('CCName')->toString();
+            $ccNumber = $request->string('CCNo')->toString();
 
-        if ($merchantCode === '' || $refNo === '') {
-            return response('INVALID', 400);
-        }
+            $amount = (string) preg_replace('/[^\d.,]/', '', $amountRaw);
+            $paymentAmount = (float) str_replace(',', '', $amount);
+            $paymentDateValue = $paymentDate !== '' ? $paymentDate : now()->toDateTimeString();
 
-        if ($merchantCode !== $this->ipay88MerchantCode()) {
-            return response('INVALID', 400);
-        }
-
-        $expectedSignature = $this->ipay88Signature($refNo, $amount, $currency);
-        $signatureOk = $expectedSignature !== '' && hash_equals($expectedSignature, $signature);
-        if (!$signatureOk) {
-            return response('INVALID', 400);
-        }
-
-        $order = Orders::query()
-            ->where('order_no', $refNo)
-            ->where('is_active', true)
-            ->first();
-
-        if (!$order) {
-            return response('INVALID', 404);
-        }
-
-        $application = Applications::query()
-            ->where('application_id', $order->application_id)
-            ->first();
-
-        if (!$application) {
-            return response('INVALID', 404);
-        }
-
-        if ($status !== '1') {
-            Payments::create([
-                'order_id' => $order->order_id,
-                'order_no' => $order->order_no,
-                'payment_amount' => (float) $amount,
+            Log::info('ipay88.backend.receive', [
+                'merchant_code' => $merchantCode,
+                'ref_no' => $refNo,
+                'amount' => $amount,
+                'currency' => $currency,
+                'status' => $status,
+                'signature_len' => strlen($signature),
+                'transaction_id' => $transactionId,
                 'payment_date' => $paymentDate,
-                'payment_status' => false,
+                'issuing_bank' => $issuingBank,
+                'cc_last4' => $ccNumber !== '' ? substr($ccNumber, -4) : null,
             ]);
 
-            return response('RECEIVEOK', 200);
-        }
-
-        DB::transaction(function () use ($order, $application, $amount, $paymentDate, $issuing_bank, $cc_name, $cc_number) {
-            if (!$order->is_paid) {
-                $order->update(['is_paid' => true]);
+            if ($merchantCode === '' || $refNo === '') {
+                Log::warning('ipay88.backend.invalid_request', [
+                    'merchant_code' => $merchantCode,
+                    'ref_no' => $refNo,
+                ]);
+                return response('INVALID', 400);
             }
 
-            $invoice = $this->upsertInvoiceForOrder($order, $application);
-            $invoice->update([
-                'invoice_status' => 'paid',
+            if ($merchantCode !== $this->ipay88MerchantCode()) {
+                Log::warning('ipay88.backend.merchant_mismatch', [
+                    'merchant_code' => $merchantCode,
+                ]);
+                return response('INVALID', 400);
+            }
+
+            $expectedSignature = $this->ipay88Signature($refNo, $amount, $currency);
+            $signatureOk = $expectedSignature !== '' && hash_equals($expectedSignature, $signature);
+            if (!$signatureOk && !env('IPAY88_SKIP_SIGNATURE_VERIFY', false)) {
+                Log::warning('ipay88.backend.signature_mismatch', [
+                    'ref_no' => $refNo,
+                    'expected_len' => strlen($expectedSignature),
+                    'received_len' => strlen($signature),
+                ]);
+                return response('INVALID', 400);
+            }
+
+            $order = Orders::query()
+                ->where('order_no', $refNo)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$order) {
+                Log::warning('ipay88.backend.order_not_found', [
+                    'ref_no' => $refNo,
+                ]);
+                return response('INVALID', 404);
+            }
+
+            $application = Applications::query()
+                ->where('application_id', $order->application_id)
+                ->first();
+
+            if (!$application) {
+                Log::warning('ipay88.backend.application_not_found', [
+                    'order_id' => $order->order_id,
+                    'application_id' => $order->application_id,
+                ]);
+                return response('INVALID', 404);
+            }
+
+            if ($status !== '1') {
+                Payments::create([
+                    'order_id' => $order->order_id,
+                    'order_no' => $order->order_no,
+                    'transaction_id' => $transactionId !== '' ? $transactionId : $order->order_no,
+                    'payment_amount' => $paymentAmount,
+                    'payment_date' => $paymentDateValue,
+                    'issuing_bank' => $issuingBank !== '' ? $issuingBank : null,
+                    'cc_name' => $ccName !== '' ? $ccName : null,
+                    'cc_number' => $ccNumber !== '' ? $ccNumber : null,
+                    'payment_status' => 0,
+                ]);
+
+                return response('RECEIVEOK', 200);
+            }
+
+            DB::transaction(function () use ($order, $application, $paymentAmount, $paymentDateValue, $issuingBank, $ccName, $ccNumber, $transactionId) {
+                if (!$order->is_paid) {
+                    $order->update(['is_paid' => true]);
+                }
+
+                $invoice = $this->upsertInvoiceForOrder($order, $application);
+                $invoice->update([
+                    'invoice_status' => 'paid',
+                ]);
+
+                Payments::create([
+                    'order_id' => $order->order_id,
+                    'order_no' => $order->order_no,
+                    'transaction_id' => $transactionId !== '' ? $transactionId : $order->order_no,
+                    'payment_amount' => $paymentAmount,
+                    'payment_date' => $paymentDateValue,
+                    'issuing_bank' => $issuingBank !== '' ? $issuingBank : null,
+                    'cc_name' => $ccName !== '' ? $ccName : null,
+                    'cc_number' => $ccNumber !== '' ? $ccNumber : null,
+                    'payment_status' => 1,
+                ]);
+            });
+
+            return response('RECEIVEOK', 200);
+        } catch (\Throwable $e) {
+            Log::error('ipay88.backend.exception', [
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => collect($e->getTrace())->take(8)->all(),
             ]);
 
-            Payments::create([
-                'order_id' => $order->order_id,
-                'order_no' => $order->order_no,
-                'payment_amount' => (float) $amount,
-                'payment_date' => $paymentDate,
-                'payment_status' => true,
-                'issuing_bank' => $issuing_bank,
-                'cc_name' => $cc_name,
-                'cc_number' => $cc_number,
-            ]);
-        });
-
-        return response('RECEIVEOK', 200);
+            return response('INVALID', 500);
+        }
     }
 
     public function payment(Request $request, string $refNo)
@@ -182,8 +235,21 @@ class PaymentController extends Controller
             return $existing;
         }
 
+        $year = (string) now()->year;
         $sequence = InvoiceNo::query()
+            ->where('invoice_year', $year)
+            ->lockForUpdate()
+            ->orderByDesc('created_at')
             ->first();
+
+        if (!$sequence) {
+            $sequence = InvoiceNo::create([
+                'invoice_year' => $year,
+                'prefix' => 'INV',
+                'invoice_no' => '0',
+                'suffix' => '0',
+            ]);
+        }
 
         $current = (int) preg_replace('/\D+/', '', (string) $sequence->invoice_no);
         $next = max(0, $current) + 1;
@@ -193,7 +259,7 @@ class PaymentController extends Controller
         ]);
 
         $invoiceNo = $sequence->prefix
-            . str_pad((string) $next, $sequence->invoice_no_length, $sequence->invoice_no_suffix, STR_PAD_LEFT)
+            . str_pad((string) $next, 8, '0', STR_PAD_LEFT)
             . ($sequence->suffix && $sequence->suffix !== '0' ? $sequence->suffix : '');
 
         return Invoices::create([
