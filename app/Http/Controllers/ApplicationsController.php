@@ -9,13 +9,13 @@ use App\Models\ApplicationBooths;
 use App\Models\Booths;
 use App\Models\EventBooths;
 use App\Models\EventDeposits;
-use App\Models\InvoiceNo;
 use App\Models\Invoices;
 use App\Models\OrderItems;
 use App\Models\Orders;
 use App\Models\Categories;
 use App\Models\Events;
 use App\Models\Vendors;
+use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -27,48 +27,8 @@ use Inertia\Response;
 
 class ApplicationsController extends Controller
 {
-    private function upsertInvoiceForOrder(Orders $order, Applications $application): Invoices
+    public function __construct(private InvoiceService $invoiceService)
     {
-        $invoiceAmount = (string) $order->total_price;
-        $discountAmount = (string) ($order->discount_price ?? 0);
-
-        $existing = Invoices::query()
-            ->where('order_id', $order->order_id)
-            ->orderByDesc('created_at')
-            ->first();
-
-        if ($existing) {
-            $existing->update([
-                'invoice_date' => now()->toDateString(),
-                'discount_amount' => $discountAmount,
-                'invoice_amount' => $invoiceAmount,
-                'invoice_status' => $existing->invoice_status ?? 'pending',
-            ]);
-            return $existing;
-        }
-
-        $sequence = InvoiceNo::query()
-            ->first();
-
-        $current = (int) preg_replace('/\D+/', '', (string) $sequence->invoice_no);
-        $next = max(0, $current) + 1;
-
-        $sequence->update([
-            'invoice_no' => (string) $next,
-        ]);
-
-        $invoiceNo = $sequence->prefix
-            . str_pad((string) $next, $sequence->length, $sequence->suffix, STR_PAD_LEFT);
-
-        return Invoices::create([
-            'order_id' => $order->order_id,
-            'application_id' => $application->application_id,
-            'invoice_no' => $invoiceNo,
-            'invoice_date' => now()->toDateString(),
-            'discount_amount' => $discountAmount,
-            'invoice_amount' => $invoiceAmount,
-            'invoice_status' => 'pending',
-        ]);
     }
 
     public function participate(Request $request, Events $event)
@@ -184,10 +144,34 @@ class ApplicationsController extends Controller
     {
         $events = Events::query()
             ->orderByDesc('event_start_date')
-            ->get(['event_id', 'event_name']);
+            ->get(['event_id', 'event_name', 'require_deposit']);
+        $categories = Categories::query()
+            ->where('is_active', true)
+            ->orderBy('category_name', 'asc')
+            ->get(['category_id', 'category_name']);
+
+        $vendors = Vendors::query()
+            ->where('is_active', true)
+            ->orderBy('vendor_name', 'asc')
+            ->get([
+                'vendor_id',
+                'vendor_name',
+                'vendor_email',
+                'vendor_contact_person',
+                'vendor_contact_no',
+                'business_registration_no',
+                'business_description',
+                'category',
+                'social_medias',
+                'vendor_bank_name',
+                'vendor_bank_account_no',
+                'vendor_bank_account_name',
+            ]);
 
         return Inertia::render('applications/create', [
             'events' => $events,
+            'categories' => $categories,
+            'vendors' => $vendors,
         ]);
     }
 
@@ -384,9 +368,7 @@ class ApplicationsController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($order, $application) {
-            $this->upsertInvoiceForOrder($order, $application);
-        });
+        $this->invoiceService->upsertInvoiceForOrder($order, $application);
 
         return redirect()->back();
     }
@@ -629,6 +611,48 @@ class ApplicationsController extends Controller
                     ->delay(now()->addMinute()),
             );
         }
+
+        return redirect()->back();
+    }
+
+    public function releaseBooths(Applications $application)
+    {
+        DB::transaction(function () use ($application) {
+            $existingBoothIds = ApplicationBooths::query()
+                ->where('application_id', $application->application_id)
+                ->where('is_active', true)
+                ->pluck('booth_id')
+                ->filter()
+                ->values();
+
+            if ($existingBoothIds->isNotEmpty()) {
+                EventBooths::query()
+                    ->where('event_id', $application->event_id)
+                    ->whereIn('booth_id', $existingBoothIds)
+                    ->update(['occupied' => false]);
+            }
+
+            ApplicationBooths::query()
+                ->where('application_id', $application->application_id)
+                ->delete();
+
+            $order = Orders::query()
+                ->where('application_id', $application->application_id)
+                ->where('is_active', true)
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($order && !$order->is_paid) {
+                $order->update(['is_active' => false]);
+                OrderItems::query()
+                    ->where('order_id', $order->order_id)
+                    ->update(['is_active' => false]);
+
+                Invoices::query()
+                    ->where('order_id', $order->order_id)
+                    ->update(['invoice_status' => 'canceled']);
+            }
+        });
 
         return redirect()->back();
     }

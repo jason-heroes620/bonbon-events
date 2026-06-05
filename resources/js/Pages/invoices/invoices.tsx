@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 type PaginationLink = {
     url: string | null;
@@ -28,7 +29,7 @@ type InvoiceRow = {
     invoice_amount: number | string;
     order_id: string;
     application_id: string;
-    created_at?: string;
+    created_at: string;
     order_no?: string | null;
     is_paid?: boolean;
 };
@@ -115,7 +116,9 @@ export default function InvoicesIndex({
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Invoices</h2>}>
+        <AuthenticatedLayout
+            header={<h2 className="text-xl font-semibold">Invoices</h2>}
+        >
             <Head title="Invoices" />
 
             <div className="space-y-4">
@@ -219,7 +222,10 @@ export default function InvoicesIndex({
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
-                                                {invoice.invoice_date}
+                                                {format(
+                                                    invoice.invoice_date,
+                                                    "MMM d, y",
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex justify-end gap-2">
@@ -227,7 +233,8 @@ export default function InvoicesIndex({
                                                         href={`/invoices/${invoice.invoice_id}`}
                                                         className={buttonVariants(
                                                             {
-                                                                variant: "outline",
+                                                                variant:
+                                                                    "outline",
                                                                 size: "sm",
                                                             },
                                                         )}
@@ -239,7 +246,8 @@ export default function InvoicesIndex({
                                                             href={`/orders/${invoice.order_id}`}
                                                             className={buttonVariants(
                                                                 {
-                                                                    variant: "outline",
+                                                                    variant:
+                                                                        "outline",
                                                                     size: "sm",
                                                                 },
                                                             )}
@@ -264,4 +272,3 @@ export default function InvoicesIndex({
         </AuthenticatedLayout>
     );
 }
-

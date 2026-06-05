@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('vendor_email', 255);
             $table->string('vendor_contact_person', 255);
             $table->string('vendor_contact_no', 255);
+            $table->string('business_name', 255);
             $table->string('business_registration_no', 255);
             $table->text('business_description');
             $table->json('social_medias');

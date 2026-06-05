@@ -2,6 +2,8 @@ import GuestLayout from "@/Layouts/GuestLayout";
 import { Head } from "@inertiajs/react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 type Application = {
     application_id: string;
@@ -52,6 +54,12 @@ export default function PaymentsShow({
     items,
     ipay88,
 }: PaymentsPageProps) {
+    useEffect(() => {
+        if (application.application_status !== "paid") {
+            toast.success("Payment successful");
+        }
+    }, [application.application_status]);
+
     const formatAmount = (value: number | string) => {
         const n = typeof value === "number" ? value : Number(value);
         if (Number.isFinite(n)) return n.toFixed(2);

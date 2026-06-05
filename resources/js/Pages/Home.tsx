@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import type { Event } from "@/types";
 import "../../css/home.css";
@@ -18,6 +18,9 @@ const Home = () => {
     const [events, setEvents] = useState<Event[]>([]);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showParticipateModal, setShowParticipateModal] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showChangePasswordModal, setShowChangePasswordModal] =
+        useState(false);
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [participateData, setParticipateData] = useState({
         participants: 1,
@@ -32,6 +35,12 @@ const Home = () => {
         email: "",
         password: "",
     });
+    const passwordForm = useForm({
+        current_password: "",
+        password: "",
+        password_confirmation: "",
+    });
+    const userMenuRef = useRef<HTMLDivElement | null>(null);
 
     const page = usePage();
     const authUser = (page.props as any)?.auth?.user as
@@ -49,6 +58,24 @@ const Home = () => {
             setEvents(response.data);
         });
     }, []);
+
+    useEffect(() => {
+        if (!showUserMenu) return;
+
+        const onMouseDown = (e: MouseEvent) => {
+            const target = e.target as Node | null;
+            if (!target) return;
+            if (!userMenuRef.current) return;
+            if (!userMenuRef.current.contains(target)) {
+                setShowUserMenu(false);
+            }
+        };
+
+        document.addEventListener("mousedown", onMouseDown);
+        return () => {
+            document.removeEventListener("mousedown", onMouseDown);
+        };
+    }, [showUserMenu]);
 
     const monthShortUpper = [
         "JAN",
@@ -89,6 +116,17 @@ const Home = () => {
 
         if (!authVendor?.vendor_id) {
             window.alert("Vendor profile not found. Please log in again.");
+            return;
+        }
+
+        // check account, if not account, if not, direct to profile page to update
+        const response = await axios
+            .get("/vendor/profile/bank-account")
+            .then((res) => res.data);
+        if (!response.data) {
+            window.alert("Bank account not set. Please update your profile.");
+            window.location.href = "/vendor/profile";
+            setShowParticipateModal(false);
             return;
         }
 
@@ -227,16 +265,68 @@ const Home = () => {
             <Toaster />
             <div className="topbar">
                 <a className="logo" href="#">
-                    <div className="logo-mark">B</div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex flex-row items-center gap-2">
+                            <img
+                                src="bonbon-logo.png"
+                                alt=""
+                                className="w-12 h-12"
+                            />
+                            <p className="brand-name">BonBon</p>
+                        </div>
+                    </div>
                     <div>
-                        <div className="brand-name">BonBon × What the Pets</div>
-                        <div className="brand-sub">Pet Parent Community</div>
+                        <span className="brand-name font-bold"> X </span>
+                    </div>
+                    <div className="flex flex-row items-center gap-2">
+                        <img
+                            src="what-the-pets.png"
+                            alt=""
+                            className="w-12 h-12"
+                        />
+                        <p className="brand-name">What the Pets</p>
                     </div>
                 </a>
                 <div className="nav">
                     {isLoggedIn ? (
                         <div className="flex items-center gap-4">
                             <span>Hello, {authUser?.name ?? "Vendor"}!</span>
+                            <div className="relative" ref={userMenuRef}>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() =>
+                                        setShowUserMenu((prev) => !prev)
+                                    }
+                                >
+                                    Account
+                                </Button>
+                                {showUserMenu ? (
+                                    <div className="absolute right-0 top-full mt-2 w-48 rounded-md border bg-white shadow-md z-50">
+                                        <Link
+                                            href="/vendor/profile"
+                                            className="block w-full px-3 py-2 text-sm hover:bg-muted/50"
+                                            onClick={() =>
+                                                setShowUserMenu(false)
+                                            }
+                                        >
+                                            Profile
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            className="block w-full text-left px-3 py-2 text-sm hover:bg-muted/50"
+                                            onClick={() => {
+                                                setShowUserMenu(false);
+                                                setShowChangePasswordModal(
+                                                    true,
+                                                );
+                                            }}
+                                        >
+                                            Change Password
+                                        </button>
+                                    </div>
+                                ) : null}
+                            </div>
                             <Button type="button" onClick={handleLogout}>
                                 Logout
                             </Button>
@@ -360,7 +450,7 @@ const Home = () => {
 
             <div className="grid" id="grid"></div>
 
-            <div className="nl">
+            {/* <div className="nl">
                 <h2>Never miss a tail-wagging event</h2>
                 <p>
                     Get rewarded for spoiling your pet. Join 8,000+ pet parents
@@ -377,17 +467,33 @@ const Home = () => {
                         Subscribe
                     </button>
                 </div>
-            </div>
+            </div> */}
 
             <div className="footer">
-                <p>
-                    © {new Date().getFullYear()} BonBon × What the Pets. All
-                    rights reserved.
-                </p>
-                <div>
-                    <a href="#">About</a>
-                    <a href="#">Partners</a>
-                    <a href="#">Contact</a>
+                <div className="flex flex-col justify-start gap-4">
+                    <div className="flex gap-2">
+                        <a href="" className="text-white font-medium">
+                            Terms of Service
+                        </a>
+                    </div>
+                    <p className="text-white text-sm">
+                        © {new Date().getFullYear()} BonBon × What the Pets. All
+                        rights reserved.
+                    </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                    <span className="text-white font-medium text-sm">
+                        Contact:
+                    </span>
+                    <span className="text-sm text-white">
+                        Accessible Experiences Sdn Bhd (1496618­A)
+                    </span>
+                    <span className="text-white text-sm font-medium">
+                        hello@bonbon.com.my
+                    </span>
+                    <span className="text-white text-sm font-medium">
+                        012-7456 785
+                    </span>
                 </div>
             </div>
 
@@ -460,21 +566,161 @@ const Home = () => {
                             </Link>
                         </div>
 
-                        <button
+                        <div className="flex flex-col items-end gap-2">
+                            <Link
+                                href="/vendor/forgot-password"
+                                className="text-sm text-muted-foreground hover:underline"
+                                onClick={() => setShowLoginModal(false)}
+                            >
+                                Forgot password?
+                            </Link>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center rounded-md border px-3 py-2 text-sm"
+                                    onClick={() => setShowLoginModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    onClick={() => handleLogin()}
+                                    className="inline-flex items-center rounded-md bg-black px-3 py-2 text-sm text-white"
+                                    disabled={processing}
+                                >
+                                    Login
+                                </button>
+                            </div>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={showChangePasswordModal}
+                onOpenChange={(open) => {
+                    setShowChangePasswordModal(open);
+                    if (!open) {
+                        passwordForm.reset(
+                            "current_password",
+                            "password",
+                            "password_confirmation",
+                        );
+                        passwordForm.clearErrors();
+                    }
+                }}
+            >
+                <DialogContent className="flex flex-col sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Change Password</DialogTitle>
+                        <DialogDescription>
+                            Enter your current password and a new password.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <label
+                                htmlFor="CurrentPassword"
+                                className="text-sm font-medium"
+                            >
+                                Current Password
+                            </label>
+                            <input
+                                type="password"
+                                id="CurrentPassword"
+                                className="w-full rounded-md border border-gray-300 p-2"
+                                value={passwordForm.data.current_password}
+                                onChange={(e) =>
+                                    passwordForm.setData(
+                                        "current_password",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {passwordForm.errors.current_password ? (
+                                <p className="text-sm text-red-600">
+                                    {passwordForm.errors.current_password}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-1">
+                            <label
+                                htmlFor="NewPassword"
+                                className="text-sm font-medium"
+                            >
+                                New Password
+                            </label>
+                            <input
+                                type="password"
+                                id="NewPassword"
+                                className="w-full rounded-md border border-gray-300 p-2"
+                                value={passwordForm.data.password}
+                                onChange={(e) =>
+                                    passwordForm.setData(
+                                        "password",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {passwordForm.errors.password ? (
+                                <p className="text-sm text-red-600">
+                                    {passwordForm.errors.password}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-1">
+                            <label
+                                htmlFor="ConfirmNewPassword"
+                                className="text-sm font-medium"
+                            >
+                                Confirm New Password
+                            </label>
+                            <input
+                                type="password"
+                                id="ConfirmNewPassword"
+                                className="w-full rounded-md border border-gray-300 p-2"
+                                value={passwordForm.data.password_confirmation}
+                                onChange={(e) =>
+                                    passwordForm.setData(
+                                        "password_confirmation",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {passwordForm.errors.password_confirmation ? (
+                                <p className="text-sm text-red-600">
+                                    {passwordForm.errors.password_confirmation}
+                                </p>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex gap-2 sm:justify-end">
+                        <Button
                             type="button"
-                            className="inline-flex items-center rounded-md border px-3 py-2 text-sm"
-                            onClick={() => setShowLoginModal(false)}
+                            variant="outline"
+                            onClick={() => setShowChangePasswordModal(false)}
                         >
                             Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            onClick={() => handleLogin()}
-                            className="inline-flex items-center rounded-md bg-black px-3 py-2 text-sm text-white"
-                            disabled={processing}
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={passwordForm.processing}
+                            onClick={() => {
+                                passwordForm.put("/password", {
+                                    preserveScroll: true,
+                                    onSuccess: () => {
+                                        setShowChangePasswordModal(false);
+                                        toast.success("Password updated.");
+                                    },
+                                });
+                            }}
                         >
-                            Login
-                        </button>
+                            Update Password
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

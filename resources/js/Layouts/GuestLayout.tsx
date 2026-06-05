@@ -16,7 +16,7 @@ const GuestLayout = ({ children }: GuestLayoutProps) => {
                 </Link>
             </div>
 
-            <div className="mt-6 w-full overflow-hidden bg-white px-6 py-4 shadow-md max-w-lg sm:rounded-lg">
+            <div className="mt-6 w-full overflow-hidden bg-white px-6 py-4 shadow-md md:max-w-xl sm:rounded-lg">
                 {children}
             </div>
         </div>

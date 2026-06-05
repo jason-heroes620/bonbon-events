@@ -1,13 +1,33 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head } from "@inertiajs/react";
-import ApplicationForm from "./form";
-import type { Event } from "@/types";
+import CreateApplicationForm from "./create-form";
+import type { Category, Event, Vendor } from "@/types";
 
 type CreateApplicationProps = {
-    events: Pick<Event, "event_id" | "event_name">[];
+    events: Pick<Event, "event_id" | "event_name" | "require_deposit">[];
+    categories: Pick<Category, "category_id" | "category_name">[];
+    vendors: Pick<
+        Vendor,
+        | "vendor_id"
+        | "vendor_name"
+        | "vendor_contact_person"
+        | "vendor_contact_no"
+        | "vendor_email"
+        | "business_registration_no"
+        | "business_description"
+        | "category"
+        | "social_medias"
+        | "vendor_bank_name"
+        | "vendor_bank_account_no"
+        | "vendor_bank_account_name"
+    >[];
 };
 
-export default function CreateApplication({ events }: CreateApplicationProps) {
+export default function CreateApplication({
+    events,
+    categories,
+    vendors,
+}: CreateApplicationProps) {
     return (
         <AuthenticatedLayout
             header={<h2 className="text-xl font-semibold">Applications</h2>}
@@ -25,11 +45,11 @@ export default function CreateApplication({ events }: CreateApplicationProps) {
                         </p>
                     </div>
 
-                    <ApplicationForm
-                        event={events}
+                    <CreateApplicationForm
+                        events={events}
+                        categories={categories}
+                        vendors={vendors}
                         submitUrl="/applications"
-                        method="post"
-                        submitLabel="Create"
                         cancelUrl="/applications"
                     />
                 </div>

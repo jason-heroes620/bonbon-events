@@ -21,6 +21,7 @@ class Vendors extends Model
         'vendor_email',
         'vendor_contact_person',
         'vendor_contact_no',
+        'business_name',
         'business_registration_no',
         'business_description',
         'social_medias',

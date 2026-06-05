@@ -36,6 +36,7 @@ class VendorsController extends Controller
             'vendor_name' => ['required', 'string', 'max:255'],
             'vendor_contact_person' => ['required', 'string', 'max:255'],
             'vendor_contact_no' => ['required', 'string', 'max:255'],
+            'business_name' => ['nullable', 'string', 'max:255'],
             'business_registration_no' => ['required', 'string', 'max:255'],
             'business_description' => ['required', 'string'],
             'category' => ['required', 'array', 'min:1'],
@@ -47,8 +48,8 @@ class VendorsController extends Controller
             'social_medias.tiktok' => ['nullable', 'string', 'max:255'],
             'social_medias.xiaohongshu' => ['nullable', 'string', 'max:255'],
             'vendor_bank_name' => ['nullable', 'string', 'max:255'],
-            'vendor_bank_account' => ['nullable', 'string', 'max:255'],
-            'vendor_bank_branch' => ['nullable', 'string', 'max:255'],
+            'vendor_bank_account_no' => ['nullable', 'string', 'max:255'],
+            'vendor_bank_account_name' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = DB::transaction(function () use ($validated) {
@@ -66,13 +67,14 @@ class VendorsController extends Controller
                 'vendor_email' => $validated['email'],
                 'vendor_contact_person' => $validated['vendor_contact_person'],
                 'vendor_contact_no' => $validated['vendor_contact_no'],
+                'business_name' => $validated['business_name'],
                 'business_registration_no' => $validated['business_registration_no'],
                 'business_description' => $validated['business_description'],
                 'social_medias' => $validated['social_medias'] ?? [],
                 'category' => $validated['category'],
                 'vendor_bank_name' => $validated['vendor_bank_name'],
-                'vendor_bank_account' => $validated['vendor_bank_account'],
-                'vendor_bank_branch' => $validated['vendor_bank_branch'],
+                'vendor_bank_account_no' => $validated['vendor_bank_account_no'],
+                'vendor_bank_account_name' => $validated['vendor_bank_account_name'],
                 'is_active' => true,
             ]);
 
@@ -172,6 +174,7 @@ class VendorsController extends Controller
             'vendor_email' => ['required', 'email', 'max:255'],
             'vendor_contact_person' => ['required', 'string', 'max:255'],
             'vendor_contact_no' => ['required', 'string', 'max:255'],
+            'business_name' => ['nullable', 'string', 'max:255'],
             'business_registration_no' => ['required', 'string', 'max:255'],
             'business_description' => ['required', 'string'],
             'category' => ['required', 'array', 'min:1'],
@@ -183,8 +186,8 @@ class VendorsController extends Controller
             'social_medias.tiktok' => ['nullable', 'string', 'max:255'],
             'social_medias.xiaohongshu' => ['nullable', 'string', 'max:255'],
             'vendor_bank_name' => ['nullable', 'string', 'max:255'],
-            'vendor_bank_account' => ['nullable', 'string', 'max:255'],
-            'vendor_bank_branch' => ['nullable', 'string', 'max:255'],
+            'vendor_bank_account_no' => ['nullable', 'string', 'max:255'],
+            'vendor_bank_account_name' => ['nullable', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -194,13 +197,14 @@ class VendorsController extends Controller
             'vendor_email' => $validated['vendor_email'],
             'vendor_contact_person' => $validated['vendor_contact_person'],
             'vendor_contact_no' => $validated['vendor_contact_no'],
+            'business_name' => $validated['business_name'],
             'business_registration_no' => $validated['business_registration_no'],
             'business_description' => $validated['business_description'],
             'social_medias' => $validated['social_medias'] ?? [],
             'category' => $validated['category'],
             'vendor_bank_name' => $validated['vendor_bank_name'],
-            'vendor_bank_account' => $validated['vendor_bank_account'],
-            'vendor_bank_branch' => $validated['vendor_bank_branch'],
+            'vendor_bank_account_no' => $validated['vendor_bank_account_no'],
+            'vendor_bank_account_name' => $validated['vendor_bank_account_name'],
             'is_active' => (bool) ($validated['is_active'] ?? true),
         ]);
 
@@ -235,6 +239,7 @@ class VendorsController extends Controller
             'vendor_email' => ['required', 'email', 'max:255'],
             'vendor_contact_person' => ['required', 'string', 'max:255'],
             'vendor_contact_no' => ['required', 'string', 'max:255'],
+            'business_name' => ['nullable', 'string', 'max:255'],
             'business_registration_no' => ['required', 'string', 'max:255'],
             'business_description' => ['required', 'string'],
             'category' => ['required', 'array', 'min:1'],
@@ -246,8 +251,8 @@ class VendorsController extends Controller
             'social_medias.tiktok' => ['nullable', 'string', 'max:255'],
             'social_medias.xiaohongshu' => ['nullable', 'string', 'max:255'],
             'vendor_bank_name' => ['nullable', 'string', 'max:255'],
-            'vendor_bank_account' => ['nullable', 'string', 'max:255'],
-            'vendor_bank_branch' => ['nullable', 'string', 'max:255'],
+            'vendor_bank_account_no' => ['nullable', 'string', 'max:255'],
+            'vendor_bank_account_name' => ['nullable', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -257,13 +262,14 @@ class VendorsController extends Controller
             'vendor_email' => $validated['vendor_email'],
             'vendor_contact_person' => $validated['vendor_contact_person'],
             'vendor_contact_no' => $validated['vendor_contact_no'],
+            'business_name' => $validated['business_name'],
             'business_registration_no' => $validated['business_registration_no'],
             'business_description' => $validated['business_description'],
             'social_medias' => $validated['social_medias'] ?? [],
             'category' => $validated['category'],
             'vendor_bank_name' => $validated['vendor_bank_name'],
-            'vendor_bank_account' => $validated['vendor_bank_account'],
-            'vendor_bank_branch' => $validated['vendor_bank_branch'],
+            'vendor_bank_account_no' => $validated['vendor_bank_account_no'],
+            'vendor_bank_account_name' => $validated['vendor_bank_account_name'],
             'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 

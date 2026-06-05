@@ -11,6 +11,7 @@ type VendorFormData = {
     vendor_email: string;
     vendor_contact_person: string;
     vendor_contact_no: string;
+    business_name: string;
     business_registration_no: string;
     business_description: string;
     category: string[];
@@ -68,6 +69,7 @@ export default function VendorForm({
         vendor_email: vendor?.vendor_email ?? "",
         vendor_contact_person: vendor?.vendor_contact_person ?? "",
         vendor_contact_no: vendor?.vendor_contact_no ?? "",
+        business_name: vendor?.business_name ?? "",
         business_registration_no: vendor?.business_registration_no ?? "",
         business_description: vendor?.business_description ?? "",
         category: defaultCategory,
@@ -217,6 +219,28 @@ export default function VendorForm({
                     {form.errors.vendor_contact_person ? (
                         <p className="text-sm text-red-600">
                             {form.errors.vendor_contact_person}
+                        </p>
+                    ) : null}
+                </div>
+
+                <div className="space-y-2">
+                    <label
+                        htmlFor="business_name"
+                        className="text-sm font-medium"
+                    >
+                        Company Name
+                    </label>
+                    <Input
+                        id="business_name"
+                        value={form.data.business_name}
+                        onChange={(e) =>
+                            form.setData("business_name", e.target.value)
+                        }
+                        aria-invalid={Boolean(form.errors.business_name)}
+                    />
+                    {form.errors.business_name ? (
+                        <p className="text-sm text-red-600">
+                            {form.errors.business_name}
                         </p>
                     ) : null}
                 </div>

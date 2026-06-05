@@ -4,20 +4,28 @@ import TextInput from "@/components/TextInput";
 import GuestLayout from "@/Layouts/GuestLayout";
 import { Head, useForm } from "@inertiajs/react";
 
-export default function ForgotPassword({ status }) {
+const ForgotPassword = ({
+    status,
+    postRouteName,
+    title,
+}: {
+    status: string;
+    postRouteName: string;
+    title: string;
+}) => {
     const { data, setData, post, processing, errors } = useForm({
         email: "",
     });
 
-    const submit = (e) => {
+    const submit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        post(route("password.email"));
+        post(route(postRouteName ?? "password.email"));
     };
 
     return (
         <GuestLayout>
-            <Head title="Forgot Password" />
+            <Head title={title ?? "Forgot Password"} />
 
             <div className="mb-4 text-sm text-gray-600">
                 Forgot your password? No problem. Just let us know your email
@@ -52,4 +60,6 @@ export default function ForgotPassword({ status }) {
             </form>
         </GuestLayout>
     );
-}
+};
+
+export default ForgotPassword;

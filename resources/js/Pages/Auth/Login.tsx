@@ -11,10 +11,16 @@ import type { ReactNode } from "react";
 type LoginProps = {
     status?: ReactNode;
     canResetPassword?: boolean;
+    forgotPasswordRouteName?: string;
     postUrl?: string;
 };
 
-export default function Login({ status, canResetPassword, postUrl }: LoginProps) {
+export default function Login({
+    status,
+    canResetPassword,
+    forgotPasswordRouteName,
+    postUrl,
+}: LoginProps) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: "",
         password: "",
@@ -91,7 +97,9 @@ export default function Login({ status, canResetPassword, postUrl }: LoginProps)
                 <div className="mt-4 flex items-center justify-end">
                     {canResetPassword && (
                         <Link
-                            href={route("password.request")}
+                            href={route(
+                                forgotPasswordRouteName ?? "password.request",
+                            )}
                             className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                         >
                             Forgot your password?

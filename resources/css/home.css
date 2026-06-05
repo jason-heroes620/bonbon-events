@@ -13,7 +13,7 @@
     --text-body: #4a3728;
     --text-muted: #9a7d6e;
     --border: rgba(61, 35, 20, 0.12);
-    font-family: "DM Sans", sans-serif;
+    font-family: "Bebas Neue", sans-serif;
     font-size: 15px;
     line-height: 1.6;
     color: var(--text-body);
@@ -42,13 +42,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 14px;
     color: #fff;
     flex-shrink: 0;
 }
 .brand-name {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 14px;
     font-weight: 700;
     color: var(--deep-brown);
@@ -61,7 +61,7 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-muted);
-    font-family: "DM Sans", sans-serif;
+    font-family: "Bebas Neue", sans-serif;
 }
 .nav {
     display: flex;
@@ -131,7 +131,7 @@
     margin-bottom: 1.2rem;
 }
 h1 {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 2.6rem;
     font-weight: 700;
     color: var(--deep-brown);
@@ -162,7 +162,7 @@ h1 em {
     align-items: center;
     padding: 0.65rem 1.5rem;
     border-radius: 100px;
-    font-family: "DM Sans", sans-serif;
+    font-family: "Bebas Neue", sans-serif;
     font-size: 14px;
     font-weight: 500;
     text-decoration: none;
@@ -189,7 +189,7 @@ h1 em {
 }
 
 .stats {
-    background: var(--deep-brown);
+    background: black;
     padding: 2rem 1.5rem;
     display: flex;
     justify-content: center;
@@ -200,16 +200,17 @@ h1 em {
     text-align: center;
 }
 .stat-n {
-    font-family: "Fraunces", serif;
-    font-size: 1.6rem;
+    font-family: "Bebas Neue", serif;
+    font-size: 2rem;
     font-weight: 700;
-    color: var(--peach);
+    color: #f90606;
 }
 .stat-l {
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.45);
+    color: #ffffff94;
     margin-top: 2px;
 }
 
@@ -219,7 +220,7 @@ h1 em {
     margin: 0 auto;
 }
 .filter-bar h2 {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 1.7rem;
     font-weight: 700;
     color: var(--deep-brown);
@@ -309,7 +310,7 @@ h1 em {
     margin-bottom: 0.4rem;
 }
 .card-title {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 1.05rem;
     font-weight: 700;
     color: var(--deep-brown);
@@ -339,13 +340,13 @@ h1 em {
     padding-top: 0.85rem;
 }
 .card-price {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 1rem;
     font-weight: 700;
     color: var(--deep-brown);
 }
 .card-price small {
-    font-family: "DM Sans", sans-serif;
+    font-family: "Bebas Neue", sans-serif;
     font-size: 10px;
     font-weight: 400;
     color: var(--text-muted);
@@ -369,20 +370,20 @@ h1 em {
 }
 
 .nl {
-    background: var(--deep-brown);
+    background: black;
     padding: 3.5rem 1.5rem;
     text-align: center;
 }
 .nl h2 {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 1.8rem;
     font-weight: 700;
-    color: var(--cream);
+    color: #f90606;
     margin-bottom: 0.6rem;
 }
 .nl p {
     color: rgba(250, 247, 242, 0.55);
-    font-size: 0.9rem;
+    font-size: 1rem;
     margin-bottom: 1.75rem;
     font-weight: 300;
 }
@@ -403,7 +404,7 @@ h1 em {
     background: rgba(255, 255, 255, 0.08);
     color: var(--cream);
     font-size: 13px;
-    font-family: "DM Sans", sans-serif;
+    font-family: "Bebas Neue", sans-serif;
     outline: none;
 }
 .nl-input::placeholder {
@@ -417,7 +418,7 @@ h1 em {
     border: none;
     font-size: 13px;
     font-weight: 500;
-    font-family: "DM Sans", sans-serif;
+    font-family: "Bebas Neue", sans-serif;
     cursor: pointer;
 }
 .nl-btn:hover {
@@ -429,7 +430,7 @@ h1 em {
     background: #2a180d;
     padding: 1.5rem;
     display: flex;
-    align-items: center;
+    align-items: top;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.75rem;
@@ -439,10 +440,9 @@ h1 em {
     color: rgba(255, 255, 255, 0.3);
 }
 .footer a {
-    font-size: 12px;
+    font-size: 14px;
     color: rgba(255, 255, 255, 0.4);
     text-decoration: none;
-    margin-left: 1.2rem;
 }
 .footer a:hover {
     color: var(--peach);
@@ -486,7 +486,7 @@ h1 em {
 }
 
 .event-date-day {
-    font-family: "Fraunces", serif;
+    font-family: "Bebas Neue", serif;
     font-size: 18px;
     font-weight: 700;
     color: var(--deep-brown);

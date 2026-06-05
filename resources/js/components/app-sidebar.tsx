@@ -56,6 +56,10 @@ const allItems: {
                 title: "All Events",
                 url: "/events",
             },
+            {
+                title: "Event Summary",
+                url: "/events/summary",
+            },
         ],
     },
     {
@@ -69,6 +73,10 @@ const allItems: {
             {
                 title: "Invoices",
                 url: "/invoices",
+            },
+            {
+                title: "Deposit Refund",
+                url: "/deposit-refund",
             },
         ],
     },

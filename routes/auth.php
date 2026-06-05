@@ -9,7 +9,10 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VendorAuthenticatedSessionController;
+use App\Http\Controllers\Auth\VendorNewPasswordController;
+use App\Http\Controllers\Auth\VendorPasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\VendorProfileController;
 use App\Http\Controllers\VendorsController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +26,18 @@ Route::middleware('guest')->group(function () {
         ->name('vendor.login');
     Route::post('vendor/login', [VendorAuthenticatedSessionController::class, 'store'])
         ->name('vendor.login.store');
+
+    Route::get('vendor/forgot-password', [VendorPasswordResetLinkController::class, 'create'])
+        ->name('vendor.password.request');
+
+    Route::post('vendor/forgot-password', [VendorPasswordResetLinkController::class, 'store'])
+        ->name('vendor.password.email');
+
+    Route::get('vendor/reset-password/{token}', [VendorNewPasswordController::class, 'create'])
+        ->name('vendor.password.reset');
+
+    Route::post('vendor/reset-password', [VendorNewPasswordController::class, 'store'])
+        ->name('vendor.password.store');
 
     // Route::get('register', [RegisteredUserController::class, 'create'])
     //     ->name('register');
@@ -48,6 +63,13 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('vendor/profile', [VendorProfileController::class, 'edit'])
+        ->name('vendor.profile.edit');
+    Route::put('vendor/profile', [VendorProfileController::class, 'update'])
+        ->name('vendor.profile.update');
+    Route::get('vendor/profile/bank-account', [VendorProfileController::class, 'bankAccount'])
+        ->name('vendor.profile.bank-account');
+
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 

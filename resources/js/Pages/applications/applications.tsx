@@ -71,7 +71,6 @@ export default function ApplicationsIndex({
     applications,
     filters,
 }: ApplicationsPageProps) {
-    console.log(applications);
     const [search, setSearch] = useState(filters.search ?? "");
     const didMountRef = useRef(false);
 

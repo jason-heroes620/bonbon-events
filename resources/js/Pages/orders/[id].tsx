@@ -2,6 +2,7 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 type Order = {
     order_id: string;
@@ -12,7 +13,7 @@ type Order = {
     discount_price: number | string;
     is_paid: boolean;
     is_active: boolean;
-    created_at?: string;
+    created_at: string;
 };
 
 type Invoice = {
@@ -45,17 +46,27 @@ export default function OrderShow({ order, invoice, items }: OrderShowProps) {
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Orders</h2>}>
+        <AuthenticatedLayout
+            header={<h2 className="text-xl font-semibold">Orders</h2>}
+        >
             <Head title={`Order ${order.order_no}`} />
 
             <div className="max-w-5xl space-y-4">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-lg font-semibold">
-                            Order {order.order_no}
+                            Order No: {order.order_no}
                         </h1>
                         <div className="text-sm text-muted-foreground">
-                            Application {order.application_code}
+                            Application{" "}
+                            <Link
+                                className={buttonVariants({
+                                    variant: "link",
+                                })}
+                                href={`/applications/${order.application_id}`}
+                            >
+                                {order.application_code}
+                            </Link>
                         </div>
                     </div>
                     <Link
@@ -96,7 +107,9 @@ export default function OrderShow({ order, invoice, items }: OrderShowProps) {
                         <div className="text-sm text-muted-foreground">
                             Order Date
                         </div>
-                        <div className="text-sm">{order.created_at ?? "-"}</div>
+                        <div className="text-sm">
+                            {format(order.created_at, "MMM d, y") ?? "-"}
+                        </div>
                     </div>
                 </div>
 
@@ -163,7 +176,9 @@ export default function OrderShow({ order, invoice, items }: OrderShowProps) {
                         {invoice ? (
                             <Link
                                 href={`/invoices/${invoice.invoice_id}`}
-                                className={buttonVariants({ variant: "outline" })}
+                                className={buttonVariants({
+                                    variant: "outline",
+                                })}
                             >
                                 View Invoice
                             </Link>
@@ -174,4 +189,3 @@ export default function OrderShow({ order, invoice, items }: OrderShowProps) {
         </AuthenticatedLayout>
     );
 }
-

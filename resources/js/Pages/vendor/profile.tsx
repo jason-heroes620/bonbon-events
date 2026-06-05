@@ -1,16 +1,20 @@
 import GuestLayout from "@/Layouts/GuestLayout";
-import { Head, Link, router, useForm } from "@inertiajs/react";
-import type { Category } from "@/types";
+import { Head, Link, useForm } from "@inertiajs/react";
+import type { Category, Vendor } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "@/components/ui/multi-select";
 import type { FormEvent } from "react";
+import { toast, Toaster } from "sonner";
 
-type VendorRegisterFormData = {
-    email: string;
-    password: string;
-    password_confirmation: string;
+type VendorProfileProps = {
+    vendor: Vendor;
+    categories: Pick<Category, "category_id" | "category_name">[];
+};
+
+type VendorProfileFormData = {
     vendor_name: string;
+    vendor_email: string;
     vendor_contact_person: string;
     vendor_contact_no: string;
     business_name: string;
@@ -24,124 +28,82 @@ type VendorRegisterFormData = {
         tiktok: string;
         xiaohongshu: string;
     };
-};
-
-type VendorRegisterProps = {
-    categories: Pick<Category, "category_id" | "category_name">[];
+    vendor_bank_name: string;
+    vendor_bank_account_no: string;
+    vendor_bank_account_name: string;
 };
 
 const textareaClassName =
     "w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
 
-export default function VendorRegister({ categories }: VendorRegisterProps) {
-    const form = useForm<VendorRegisterFormData>({
-        email: "",
-        password: "",
-        password_confirmation: "",
-        vendor_name: "",
-        vendor_contact_person: "",
-        vendor_contact_no: "",
-        business_name: "",
-        business_registration_no: "",
-        business_description: "",
-        category: [],
+const normalizeCategory = (value: Vendor["category"]): string[] => {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== "string") return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+export default function VendorProfile({
+    vendor,
+    categories,
+}: VendorProfileProps) {
+    const social = (vendor.social_medias ?? {}) as Partial<
+        VendorProfileFormData["social_medias"]
+    >;
+
+    const form = useForm<VendorProfileFormData>({
+        vendor_name: vendor.vendor_name ?? "",
+        vendor_email: vendor.vendor_email ?? "",
+        vendor_contact_person: vendor.vendor_contact_person ?? "",
+        vendor_contact_no: vendor.vendor_contact_no ?? "",
+        business_name: vendor.business_name ?? "",
+        business_registration_no: vendor.business_registration_no ?? "",
+        business_description: vendor.business_description ?? "",
+        category: normalizeCategory(vendor.category),
         social_medias: {
-            instagram: "",
-            facebook: "",
-            youtube: "",
-            tiktok: "",
-            xiaohongshu: "",
+            instagram: social.instagram ?? "",
+            facebook: social.facebook ?? "",
+            youtube: social.youtube ?? "",
+            tiktok: social.tiktok ?? "",
+            xiaohongshu: social.xiaohongshu ?? "",
         },
+        vendor_bank_name: vendor.vendor_bank_name ?? "",
+        vendor_bank_account_no: vendor.vendor_bank_account_no ?? "",
+        vendor_bank_account_name: vendor.vendor_bank_account_name ?? "",
     });
 
     const submit = (e: FormEvent) => {
         e.preventDefault();
-        form.post("/vendor/register");
+        form.put("/vendor/profile", {
+            onSuccess: () => {
+                toast.success("Profile updated successfully");
+            },
+            preserveScroll: true,
+        });
     };
 
     return (
         <GuestLayout>
-            <Head title="Vendor Registration" />
-
+            <Head title="Profile" />
+            <Toaster />
             <div className="mb-6 space-y-1">
-                <h1 className="text-lg font-semibold">Vendor Registration</h1>
+                <h1 className="text-lg font-semibold">Profile</h1>
                 <p className="text-sm text-gray-600">
-                    Create your vendor account to participate in events.
+                    Update your vendor information.
                 </p>
             </div>
 
             <form onSubmit={submit} className="space-y-4">
                 <div className="space-y-2">
-                    <label htmlFor="email" className="text-sm font-medium">
-                        Email
-                    </label>
-                    <Input
-                        id="email"
-                        type="email"
-                        value={form.data.email}
-                        onChange={(e) => form.setData("email", e.target.value)}
-                        aria-invalid={Boolean(form.errors.email)}
-                    />
-                    {form.errors.email ? (
-                        <p className="text-sm text-red-600">
-                            {form.errors.email}
-                        </p>
-                    ) : null}
-                </div>
-
-                <div className="flex flex-col gap-4">
-                    <div className="space-y-2">
-                        <label
-                            htmlFor="password"
-                            className="text-sm font-medium"
-                        >
-                            Password
-                        </label>
-                        <Input
-                            id="password"
-                            type="password"
-                            value={form.data.password}
-                            onChange={(e) =>
-                                form.setData("password", e.target.value)
-                            }
-                            aria-invalid={Boolean(form.errors.password)}
-                        />
-                        {form.errors.password ? (
-                            <p className="text-sm text-red-600">
-                                {form.errors.password}
-                            </p>
-                        ) : null}
-                    </div>
-
-                    <div className="space-y-2">
-                        <label
-                            htmlFor="password_confirmation"
-                            className="text-sm font-medium"
-                        >
-                            Confirm Password
-                        </label>
-                        <Input
-                            id="password_confirmation"
-                            type="password"
-                            value={form.data.password_confirmation}
-                            onChange={(e) =>
-                                form.setData(
-                                    "password_confirmation",
-                                    e.target.value,
-                                )
-                            }
-                        />
-                    </div>
-                </div>
-
-                <hr />
-
-                <div className="space-y-2">
                     <label
                         htmlFor="vendor_name"
                         className="text-sm font-medium"
                     >
-                        Organization / Brand Name
+                        Vendor Name
                     </label>
                     <Input
                         id="vendor_name"
@@ -154,6 +116,30 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                     {form.errors.vendor_name ? (
                         <p className="text-sm text-red-600">
                             {form.errors.vendor_name}
+                        </p>
+                    ) : null}
+                </div>
+
+                <div className="space-y-2">
+                    <label
+                        htmlFor="vendor_email"
+                        className="text-sm font-medium"
+                    >
+                        Email
+                    </label>
+                    <Input
+                        id="vendor_email"
+                        type="email"
+                        value={form.data.vendor_email}
+                        onChange={(e) =>
+                            form.setData("vendor_email", e.target.value)
+                        }
+                        aria-invalid={Boolean(form.errors.vendor_email)}
+                        disabled
+                    />
+                    {form.errors.vendor_email ? (
+                        <p className="text-sm text-red-600">
+                            {form.errors.vendor_email}
                         </p>
                     ) : null}
                 </div>
@@ -213,7 +199,6 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                         ) : null}
                     </div>
                 </div>
-                <hr />
 
                 <div className="space-y-2">
                     <label
@@ -264,30 +249,6 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                     ) : null}
                 </div>
 
-                <div className="space-y-2 flex w-full flex-col">
-                    <label className="text-sm font-medium">Categories</label>
-                    <MultiSelect
-                        options={categories.map((c) => ({
-                            label: c.category_name,
-                            value: c.category_id,
-                        }))}
-                        onValueChange={(value) =>
-                            form.setData("category", value)
-                        }
-                        defaultValue={form.data.category}
-                        placeholder="Select categories"
-                        variant="default"
-                        maxSelected={categories.length}
-                        maxCount={3}
-                        aria-invalid={Boolean(form.errors.category)}
-                    />
-                    {form.errors.category ? (
-                        <p className="text-sm text-red-600">
-                            {form.errors.category}
-                        </p>
-                    ) : null}
-                </div>
-
                 <div className="space-y-2">
                     <label
                         htmlFor="business_description"
@@ -297,13 +258,12 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                     </label>
                     <textarea
                         id="business_description"
-                        className={textareaClassName}
                         rows={4}
+                        className={textareaClassName}
                         value={form.data.business_description}
                         onChange={(e) =>
                             form.setData("business_description", e.target.value)
                         }
-                        aria-invalid={Boolean(form.errors.business_description)}
                     />
                     {form.errors.business_description ? (
                         <p className="text-sm text-red-600">
@@ -312,14 +272,34 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                     ) : null}
                 </div>
 
-                <div className="space-y-3">
-                    <div className="text-sm font-medium">Social Medias</div>
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Category</label>
+                    <MultiSelect
+                        options={categories.map((c) => ({
+                            value: c.category_id,
+                            label: c.category_name,
+                        }))}
+                        value={form.data.category}
+                        onValueChange={(value) =>
+                            form.setData("category", value)
+                        }
+                        placeholder="Select categories"
+                        maxSelected={categories.length || 1}
+                    />
+                    {form.errors.category ? (
+                        <p className="text-sm text-red-600">
+                            {form.errors.category as any}
+                        </p>
+                    ) : null}
+                </div>
 
-                    <div className="flex flex-col gap-4">
+                <div className="space-y-2">
+                    <div className="text-sm font-medium">Social Media</div>
+                    <div className="flex gap-3 flex-col">
                         <div className="space-y-1">
                             <label
                                 htmlFor="social_instagram"
-                                className="text-sm"
+                                className="text-xs text-muted-foreground"
                             >
                                 Instagram
                             </label>
@@ -334,11 +314,10 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                                 }
                             />
                         </div>
-
                         <div className="space-y-1">
                             <label
                                 htmlFor="social_facebook"
-                                className="text-sm"
+                                className="text-xs text-muted-foreground"
                             >
                                 Facebook
                             </label>
@@ -353,9 +332,11 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                                 }
                             />
                         </div>
-
                         <div className="space-y-1">
-                            <label htmlFor="social_youtube" className="text-sm">
+                            <label
+                                htmlFor="social_youtube"
+                                className="text-xs text-muted-foreground"
+                            >
                                 YouTube
                             </label>
                             <Input
@@ -369,9 +350,11 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                                 }
                             />
                         </div>
-
                         <div className="space-y-1">
-                            <label htmlFor="social_tiktok" className="text-sm">
+                            <label
+                                htmlFor="social_tiktok"
+                                className="text-xs text-muted-foreground"
+                            >
                                 TikTok
                             </label>
                             <Input
@@ -385,11 +368,10 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                                 }
                             />
                         </div>
-
                         <div className="space-y-1 sm:col-span-2">
                             <label
                                 htmlFor="social_xiaohongshu"
-                                className="text-sm"
+                                className="text-xs text-muted-foreground"
                             >
                                 Xiaohongshu
                             </label>
@@ -406,25 +388,79 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                         </div>
                     </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-2">
-                    <Link
-                        href="/login"
-                        className="text-sm text-gray-600 underline"
-                    >
-                        Already have an account?
-                    </Link>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => router.visit("/")}
-                        >
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={form.processing}>
-                            Register
-                        </Button>
+                <hr />
+                <div className="space-y-2">
+                    <div className="text-sm font-medium">
+                        Bank Details
+                        <p className="text-xs text-muted-foreground">
+                            (for deposit refund purpose)
+                        </p>
                     </div>
+                    <div className="flex gap-3 flex-col">
+                        <div className="space-y-1">
+                            <label
+                                htmlFor="vendor_bank_name"
+                                className="text-xs text-muted-foreground"
+                            >
+                                Bank Name
+                            </label>
+                            <Input
+                                id="vendor_bank_name"
+                                value={form.data.vendor_bank_name}
+                                onChange={(e) =>
+                                    form.setData(
+                                        "vendor_bank_name",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label
+                                htmlFor="vendor_bank_account_no"
+                                className="text-xs text-muted-foreground"
+                            >
+                                Account No
+                            </label>
+                            <Input
+                                id="vendor_bank_account_no"
+                                value={form.data.vendor_bank_account_no}
+                                onChange={(e) =>
+                                    form.setData(
+                                        "vendor_bank_account_no",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label
+                                htmlFor="vendor_bank_account_name"
+                                className="text-xs text-muted-foreground"
+                            >
+                                Account Name
+                            </label>
+                            <Input
+                                id="vendor_bank_account_name"
+                                value={form.data.vendor_bank_account_name}
+                                onChange={(e) =>
+                                    form.setData(
+                                        "vendor_bank_account_name",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                    <Link href="/" className="text-sm text-muted-foreground">
+                        Back to Home
+                    </Link>
+                    <Button type="submit" disabled={form.processing}>
+                        Save Changes
+                    </Button>
                 </div>
             </form>
         </GuestLayout>

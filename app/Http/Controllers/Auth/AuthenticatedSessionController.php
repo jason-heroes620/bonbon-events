@@ -23,6 +23,7 @@ class AuthenticatedSessionController extends Controller
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
+            'forgotPasswordRouteName' => 'password.request',
         ]);
     }
 
@@ -48,7 +49,7 @@ class AuthenticatedSessionController extends Controller
 
             return redirect('/login')->with('status', 'Your account has been deactivated or you do not have permission to access this page.');
         }
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended(route('dashboard.index', absolute: false));
     }
 
     /**

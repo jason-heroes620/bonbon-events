@@ -105,6 +105,7 @@ export default function EditApplication({
                         invoice={invoice}
                         depositAmount={depositAmount}
                         confirmBoothsUrl={`/applications/${application.application_id}/confirm-booths`}
+                        releaseBoothsUrl={`/applications/${application.application_id}/release-booths`}
                         generateInvoiceUrl={`/applications/${application.application_id}/generate-invoice`}
                         sendPaymentReminderUrl={`/applications/${application.application_id}/send-payment-reminder`}
                         updateStatusUrl={`/applications/${application.application_id}/update-status`}

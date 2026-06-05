@@ -6,7 +6,9 @@ use App\Http\Controllers\BoothTypesController;
 use App\Http\Controllers\BoothsController;
 use App\Http\Controllers\EventsController;
 use App\Http\Controllers\ApplicationsController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
+use App\Http\Controllers\DepositRefundController;
 use App\Http\Controllers\InvoiceNoController;
 use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\OrdersController;
@@ -26,18 +28,16 @@ Route::get('/', function () {
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
-});
-
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified', RejectVendorAccess::class])->name('dashboard');
+})->name('home');
 
 Route::get('/payments/{applicationCode}', [PaymentsController::class, 'show'])->name('payments.show');
 Route::get('/payments/{applicationCode}/ipay88', [PaymentsController::class, 'redirectToIpay88'])->name('payments.ipay88');
 Route::match(['GET', 'POST'], '/ipay88/response', [PaymentsController::class, 'response'])->name('ipay88.response');
-Route::post('/ipay88/backend', [PaymentsController::class, 'backend'])->name('ipay88.backend');
+// Route::post('/ipay88/backend', [PaymentsController::class, 'backend'])->name('ipay88.backend');
 
-Route::middleware(['auth', RejectVendorAccess::class])->group(function () {
+Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+
     Route::get('/categories', [CategoriesController::class, 'index'])->name('categories.index');
     Route::get('/categories/create', [CategoriesController::class, 'create'])->name('categories.create');
     Route::post('/categories', [CategoriesController::class, 'store'])->name('categories.store');
@@ -69,6 +69,7 @@ Route::middleware(['auth', RejectVendorAccess::class])->group(function () {
     Route::get('/events', [EventsController::class, 'index'])->name('events.index');
     Route::get('/events/create', [EventsController::class, 'create'])->name('events.create');
     Route::post('/events', [EventsController::class, 'store'])->name('events.store');
+    Route::get('/events/summary', [EventsController::class, 'summary'])->name('events.summary');
     Route::get('/events/{event}', [EventsController::class, 'edit'])->name('events.edit');
     Route::post('/events/{event}', [EventsController::class, 'update'])->name('events.update');
     Route::delete('/events/{event}', [EventsController::class, 'destroy'])->name('events.destroy');
@@ -78,6 +79,8 @@ Route::middleware(['auth', RejectVendorAccess::class])->group(function () {
 
     Route::get('/invoices', [InvoicesController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/{invoice}', [InvoicesController::class, 'show'])->name('invoices.show');
+    Route::get('/deposit-refund', [DepositRefundController::class, 'index'])->name('deposit-refund.index');
+    Route::get('/deposit-refund/export', [DepositRefundController::class, 'export'])->name('deposit-refund.export');
 
     Route::get('/applications', [ApplicationsController::class, 'index'])->name('applications.index');
     Route::get('/applications/create', [ApplicationsController::class, 'create'])->name('applications.create');
@@ -85,6 +88,8 @@ Route::middleware(['auth', RejectVendorAccess::class])->group(function () {
     Route::get('/applications/{application}', [ApplicationsController::class, 'edit'])->name('applications.edit');
     Route::post('/applications/{application}/confirm-booths', [ApplicationsController::class, 'confirmBooths'])
         ->name('applications.confirm-booths');
+    Route::post('/applications/{application}/release-booths', [ApplicationsController::class, 'releaseBooths'])
+        ->name('applications.release-booths');
     Route::post('/applications/{application}/update-status', [ApplicationsController::class, 'updateStatus'])
         ->name('applications.update-status');
     Route::post('/applications/{application}/generate-invoice', [ApplicationsController::class, 'generateInvoice'])
@@ -134,6 +139,8 @@ Route::middleware(['auth', RejectVendorAccess::class])->group(function () {
             'eventName' => 'Test Event',
         ]);
     })->name('preview.mails.application-rejected');
+
+    Route::get('/preview/invoices/{invoice}', [InvoicesController::class, 'previewInvoice'])->name('preview.invoices.template');
 
     Route::get('/users', [UsersController::class, 'index'])->name('users.index');
     Route::get('/users/create', [UsersController::class, 'create'])->name('users.create');

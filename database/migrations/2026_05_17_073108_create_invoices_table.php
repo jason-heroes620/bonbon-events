@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('invoice_date');
             $table->decimal('discount_amount', 10, 2)->default(0);
             $table->decimal('invoice_amount', 10, 2)->default(0);
+            $table->string('invoice_file')->nullable();
             $table->enum('invoice_status', ['pending', 'paid', 'canceled']);
             $table->timestamps();
         });

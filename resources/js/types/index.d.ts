@@ -116,6 +116,7 @@ export type Vendor = {
     vendor_email: string;
     vendor_contact_person: string;
     vendor_contact_no: string;
+    business_name: string;
     business_registration_no: string;
     business_description: string;
     social_medias: any;

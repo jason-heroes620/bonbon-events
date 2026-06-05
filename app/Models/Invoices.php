@@ -20,6 +20,7 @@ class Invoices extends Model
         'invoice_date',
         'discount_amount',
         'invoice_amount',
+        'invoice_file',
         'invoice_status',
     ];
 }

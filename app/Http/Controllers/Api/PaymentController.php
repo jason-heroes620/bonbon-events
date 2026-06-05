@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplicationBooths;
 use App\Models\Applications;
-use App\Models\InvoiceNo;
+use App\Models\EventBooths;
 use App\Models\Invoices;
 use App\Models\OrderItems;
 use App\Models\Orders;
 use App\Models\Payments;
+use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +18,10 @@ use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
+    public function __construct(private InvoiceService $invoiceService)
+    {
+    }
+
     private function ipay88MerchantCode(): string
     {
         return (string) (config('services.ipay88.merchant_code')
@@ -135,7 +141,7 @@ class PaymentController extends Controller
                     $order->update(['is_paid' => true]);
                 }
 
-                $invoice = $this->upsertInvoiceForOrder($order, $application);
+                $invoice = $this->invoiceService->upsertInvoiceForOrder($order, $application);
                 $invoice->update([
                     'invoice_status' => 'paid',
                 ]);
@@ -206,47 +212,4 @@ class PaymentController extends Controller
         ]);
     }
 
-    private function upsertInvoiceForOrder(Orders $order, Applications $application): Invoices
-    {
-        $invoiceAmount = (string) $order->total_price;
-        $discountAmount = (string) ($order->discount_price ?? 0);
-
-        $existing = Invoices::query()
-            ->where('order_id', $order->order_id)
-            ->orderByDesc('created_at')
-            ->first();
-
-        if ($existing) {
-            $existing->update([
-                'invoice_date' => now()->toDateString(),
-                'discount_amount' => $discountAmount,
-                'invoice_amount' => $invoiceAmount,
-                'invoice_status' => $existing->invoice_status ?? 'pending',
-            ]);
-            return $existing;
-        }
-
-        $sequence = InvoiceNo::query()
-            ->first();
-
-        $current = (int) preg_replace('/\D+/', '', (string) $sequence->invoice_no);
-        $next = max(0, $current) + 1;
-
-        $sequence->update([
-            'invoice_no' => (string) $next,
-        ]);
-
-        $invoiceNo = $sequence->prefix
-            . str_pad((string) $next, strlen($sequence->length), $sequence->suffix, STR_PAD_LEFT);
-
-        return Invoices::create([
-            'order_id' => $order->order_id,
-            'application_id' => $application->application_id,
-            'invoice_no' => $invoiceNo,
-            'invoice_date' => now()->toDateString(),
-            'discount_amount' => $discountAmount,
-            'invoice_amount' => $invoiceAmount,
-            'invoice_status' => 'pending',
-        ]);
-    }
 }

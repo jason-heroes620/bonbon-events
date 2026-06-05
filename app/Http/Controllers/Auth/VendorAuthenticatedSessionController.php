@@ -16,9 +16,10 @@ class VendorAuthenticatedSessionController extends Controller
     public function create(): Response
     {
         return Inertia::render('Auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
+            'canResetPassword' => Route::has('vendor.password.request'),
             'status' => session('status'),
             'postUrl' => '/vendor/login',
+            'forgotPasswordRouteName' => 'vendor.password.request',
         ]);
     }
 

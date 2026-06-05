@@ -10,6 +10,7 @@ use App\Models\Booths;
 use App\Models\Events;
 use App\Models\Locations;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -40,6 +41,94 @@ class EventsController extends Controller
             'filters' => [
                 'search' => $search,
             ],
+        ]);
+    }
+
+    public function summary(Request $request): Response
+    {
+        $selectedEventId = $request->string('event_id')->toString();
+
+        $events = Events::query()
+            ->orderByDesc('event_start_date')
+            ->get(['event_id', 'event_name', 'event_start_date', 'event_booth_layout']);
+        $groups = [];
+        if ($selectedEventId !== '') {
+            $latestOrders = DB::table('orders')
+                ->where('orders.is_active', true)
+                ->select([
+                    'orders.application_id as application_id',
+                    DB::raw('MAX(orders.created_at) as max_created_at'),
+                ])
+                ->groupBy('orders.application_id');
+
+            $occupants = DB::table('application_booths')
+                ->join('applications', 'applications.application_id', '=', 'application_booths.application_id')
+                ->join('vendors', 'vendors.vendor_id', '=', 'applications.vendor_id')
+                ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
+                    $join->on('latest_orders.application_id', '=', 'applications.application_id');
+                })
+                ->leftJoin('orders', function ($join) {
+                    $join->on('orders.application_id', '=', 'applications.application_id')
+                        ->on('orders.created_at', '=', 'latest_orders.max_created_at');
+                })
+                ->where('application_booths.is_active', true)
+                ->where('applications.event_id', $selectedEventId)
+                ->where('applications.application_status', 'approved')
+                ->select([
+                    'application_booths.booth_id as booth_id',
+                    DB::raw('MAX(vendors.vendor_name) as vendor_name'),
+                    DB::raw('MAX(applications.application_id) as application_id'),
+                    DB::raw('MAX(CASE WHEN orders.is_paid = 1 THEN 1 ELSE 0 END) as is_paid'),
+                ])
+                ->groupBy('application_booths.booth_id');
+
+            $rows = EventBooths::query()
+                ->where('event_booths.event_id', $selectedEventId)
+                ->where('event_booths.is_active', true)
+                ->join('booths', 'event_booths.booth_id', '=', 'booths.booth_id')
+                ->join('booth_types', 'booths.booth_type_id', '=', 'booth_types.booth_type_id')
+                ->leftJoinSub($occupants, 'occupants', function ($join) {
+                    $join->on('occupants.booth_id', '=', 'booths.booth_id');
+                })
+                ->orderBy('booth_types.booth_type_name', 'asc')
+                ->orderBy('booths.booth_name', 'asc')
+                ->get([
+                    'booth_types.booth_type_id as booth_type_id',
+                    'booth_types.booth_type_name as booth_type_name',
+                    'booths.booth_id as booth_id',
+                    'booths.booth_name as booth_name',
+                    'event_booths.occupied as occupied',
+                    DB::raw('occupants.vendor_name as vendor_name'),
+                    DB::raw('occupants.application_id as application_id'),
+                    DB::raw('occupants.is_paid as is_paid'),
+                ]);
+
+            $groups = $rows
+                ->groupBy('booth_type_id')
+                ->map(function ($items) {
+                    $first = $items->first();
+                    return [
+                        'booth_type_id' => $first->booth_type_id,
+                        'booth_type_name' => $first->booth_type_name,
+                        'booths' => $items->map(function ($row) {
+                            return [
+                                'booth_id' => $row->booth_id,
+                                'booth_name' => $row->booth_name,
+                                'occupied' => (bool) $row->occupied,
+                                'vendor_name' => $row->vendor_name,
+                                'application_id' => $row->application_id,
+                                'is_paid' => $row->is_paid !== null ? (bool) $row->is_paid : null,
+                            ];
+                        })->values(),
+                    ];
+                })
+                ->values();
+        }
+
+        return Inertia::render('events/summary', [
+            'events' => $events,
+            'selectedEventId' => $selectedEventId !== '' ? $selectedEventId : null,
+            'groups' => $groups,
         ]);
     }
 

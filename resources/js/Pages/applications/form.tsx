@@ -77,6 +77,7 @@ type ApplicationFormProps = {
     order?: ApplicationOrder | null;
     invoice?: ApplicationInvoice | null;
     confirmBoothsUrl?: string;
+    releaseBoothsUrl?: string;
     generateInvoiceUrl?: string;
     sendPaymentReminderUrl?: string;
     updateStatusUrl?: string;
@@ -103,6 +104,7 @@ export default function ApplicationForm({
     order = null,
     invoice = null,
     confirmBoothsUrl,
+    releaseBoothsUrl,
     generateInvoiceUrl,
     sendPaymentReminderUrl,
     updateStatusUrl,
@@ -343,6 +345,26 @@ export default function ApplicationForm({
             },
             preserveScroll: true,
         });
+    };
+
+    const releaseBooths = () => {
+        if (!releaseBoothsUrl) return;
+        if (window.confirm("Release all booths for this application?")) {
+            router.post(
+                releaseBoothsUrl,
+                {},
+                {
+                    onSuccess: () => {
+                        boothsForm.setData("event_booth_ids", []);
+                        toast.success("Booths released.");
+                    },
+                    onError: () => {
+                        toast.error("Failed to release booths.");
+                    },
+                    preserveScroll: true,
+                },
+            );
+        }
     };
 
     return (
@@ -629,10 +651,25 @@ export default function ApplicationForm({
                                         {boothsForm.errors.event_booth_ids}
                                     </p>
                                 ) : null}
-                                <div className="text-sm text-muted-foreground">
-                                    Selected{" "}
-                                    {boothsForm.data.event_booth_ids.length}/
-                                    {boothLimit}
+                                <div className="flex flex-row justify-between items-center gap-2">
+                                    <div className="text-sm text-muted-foreground">
+                                        Selected{" "}
+                                        {boothsForm.data.event_booth_ids.length}
+                                        /{boothLimit}
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="destructive"
+                                        onClick={releaseBooths}
+                                        disabled={
+                                            !releaseBoothsUrl ||
+                                            boothsForm.processing ||
+                                            selectedBoothRows.length === 0 ||
+                                            Boolean(order?.is_paid)
+                                        }
+                                    >
+                                        Release Booths
+                                    </Button>
                                 </div>
                             </div>
 

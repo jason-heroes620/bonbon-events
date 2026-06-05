@@ -5,12 +5,12 @@ import TextInput from "@/components/TextInput";
 import GuestLayout from "@/Layouts/GuestLayout";
 import { Head, useForm } from "@inertiajs/react";
 
-export default function ConfirmPassword() {
+const ConfirmPassword = () => {
     const { data, setData, post, processing, errors, reset } = useForm({
         password: "",
     });
 
-    const submit = (e) => {
+    const submit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         post(route("password.confirm"), {
@@ -52,4 +52,6 @@ export default function ConfirmPassword() {
             </form>
         </GuestLayout>
     );
-}
+};
+
+export default ConfirmPassword;

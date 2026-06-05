@@ -2,6 +2,7 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatDate } from "date-fns";
 
 type Invoice = {
     invoice_id: string;
@@ -11,14 +12,15 @@ type Invoice = {
     invoice_amount: number | string;
     invoice_status: string;
     order_id: string;
-    application_id: string;
+    subtotal: number | string;
+    discount: number | string;
+    total: number | string;
     created_at?: string;
 };
 
 type Order = {
     order_id: string;
     order_no: string;
-    application_id: string;
     application_code: string;
     total_price: number | string;
     discount_price: number | string;
@@ -33,21 +35,46 @@ type OrderItem = {
     item_description: string;
 };
 
+type Vendor = {
+    vendor_id: string;
+    vendor_name: string;
+};
+
 type InvoiceShowProps = {
     invoice: Invoice;
     order: Order;
     items: OrderItem[];
+    subtotal: number | string;
+    discount: number | string;
+    total: number | string;
+    eventName: string | string;
+    vendor: Vendor;
 };
 
-export default function InvoiceShow({ invoice, order, items }: InvoiceShowProps) {
+export default function InvoiceShow({
+    invoice,
+    order,
+    items,
+    subtotal,
+    discount,
+    total,
+    eventName,
+    vendor,
+}: InvoiceShowProps) {
     const formatAmount = (value: number | string) => {
         const n = typeof value === "number" ? value : Number(value);
-        if (Number.isFinite(n)) return n.toFixed(2);
+        if (Number.isFinite(n))
+            return n.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
         return String(value);
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold">Invoices</h2>}>
+        <AuthenticatedLayout
+            header={<h2 className="text-xl font-semibold">Invoices</h2>}
+        >
             <Head title={`Invoice ${invoice.invoice_no}`} />
 
             <div className="max-w-5xl space-y-4">
@@ -56,8 +83,18 @@ export default function InvoiceShow({ invoice, order, items }: InvoiceShowProps)
                         <h1 className="text-lg font-semibold">
                             Invoice {invoice.invoice_no}
                         </h1>
-                        <div className="text-sm text-muted-foreground">
-                            {order?.order_no ? `Order ${order.order_no}` : ""}
+                        <div>
+                            <span className="text-sm text-muted-foreground">
+                                Order No:
+                            </span>
+                            <Link
+                                href={`/orders/${order?.order_id}`}
+                                className={buttonVariants({
+                                    variant: "link",
+                                })}
+                            >
+                                {order?.order_no ? ` ${order.order_no}` : ""}
+                            </Link>
                         </div>
                     </div>
                     <Link
@@ -69,26 +106,25 @@ export default function InvoiceShow({ invoice, order, items }: InvoiceShowProps)
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border bg-white p-4">
+                    <div className="flex flex-row items-center justify-between rounded-lg border bg-white p-4">
                         <div className="text-sm text-muted-foreground">
                             Status
                         </div>
-                        <div className="mt-1">
-                            <span
-                                className={cn(
-                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                    invoice.invoice_status === "paid"
-                                        ? "bg-emerald-100 text-emerald-800"
-                                        : invoice.invoice_status === "canceled"
-                                          ? "bg-gray-100 text-gray-800"
-                                          : "bg-amber-100 text-amber-800",
-                                )}
-                            >
-                                {invoice.invoice_status}
-                            </span>
-                        </div>
+
+                        <span
+                            className={cn(
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                invoice.invoice_status === "paid"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : invoice.invoice_status === "canceled"
+                                      ? "bg-gray-100 text-gray-800"
+                                      : "bg-amber-100 text-amber-800",
+                            )}
+                        >
+                            {invoice.invoice_status}
+                        </span>
                     </div>
-                    <div className="rounded-lg border bg-white p-4">
+                    <div className="flex flex-row items-center justify-between rounded-lg border bg-white p-4">
                         <div className="text-sm text-muted-foreground">
                             Invoice Amount
                         </div>
@@ -96,11 +132,13 @@ export default function InvoiceShow({ invoice, order, items }: InvoiceShowProps)
                             {formatAmount(invoice.invoice_amount)}
                         </div>
                     </div>
-                    <div className="rounded-lg border bg-white p-4">
+                    <div className="flex flex-row items-center justify-between rounded-lg border bg-white p-4">
                         <div className="text-sm text-muted-foreground">
                             Invoice Date
                         </div>
-                        <div className="text-sm">{invoice.invoice_date}</div>
+                        <div className="text-sm">
+                            {formatDate(invoice.invoice_date, "MMM d, yyyy")}
+                        </div>
                     </div>
                 </div>
 
@@ -108,28 +146,17 @@ export default function InvoiceShow({ invoice, order, items }: InvoiceShowProps)
                     <div className="grid gap-2 sm:grid-cols-2">
                         <div className="text-sm">
                             <span className="text-muted-foreground">
-                                Application ID:
+                                Vendor:
                             </span>{" "}
-                            {invoice.application_id}
+                            {vendor.vendor_name}
                         </div>
                         <div className="text-sm">
                             <span className="text-muted-foreground">
-                                Discount:
+                                Event Name:
                             </span>{" "}
-                            {formatAmount(invoice.discount_amount)}
+                            {eventName}
                         </div>
                     </div>
-
-                    {order?.order_id ? (
-                        <div className="mt-3">
-                            <Link
-                                href={`/orders/${order.order_id}`}
-                                className={buttonVariants({ variant: "outline" })}
-                            >
-                                View Order
-                            </Link>
-                        </div>
-                    ) : null}
                 </div>
 
                 <div className="rounded-lg border bg-white">
@@ -183,8 +210,20 @@ export default function InvoiceShow({ invoice, order, items }: InvoiceShowProps)
                         </table>
                     </div>
                 </div>
+                <div className="flex justify-end">
+                    <div>
+                        <span className="text-sm font-semibold">
+                            Sub Total: {formatAmount(subtotal)}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex justify-end">
+                    <div className="text-sm">
+                        <span className="text-muted-foreground">Discount:</span>{" "}
+                        {formatAmount(discount)}
+                    </div>
+                </div>
             </div>
         </AuthenticatedLayout>
     );
 }
-

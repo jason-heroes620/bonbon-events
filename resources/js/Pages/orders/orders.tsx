@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 type PaginationLink = {
     url: string | null;
@@ -28,7 +29,7 @@ type OrderRow = {
     discount_price: number | string;
     is_paid: boolean;
     is_active: boolean;
-    created_at?: string;
+    created_at: Date;
     invoice_id?: string | null;
     invoice_no?: string | null;
     invoice_status?: string | null;
@@ -235,7 +236,10 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
-                                                {order.created_at ?? "-"}
+                                                {format(
+                                                    order?.created_at,
+                                                    "MMM d, y",
+                                                ) ?? "-"}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <Link
