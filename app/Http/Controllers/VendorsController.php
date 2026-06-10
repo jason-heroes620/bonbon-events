@@ -72,9 +72,9 @@ class VendorsController extends Controller
                 'business_description' => $validated['business_description'],
                 'social_medias' => $validated['social_medias'] ?? [],
                 'category' => $validated['category'],
-                'vendor_bank_name' => $validated['vendor_bank_name'],
-                'vendor_bank_account_no' => $validated['vendor_bank_account_no'],
-                'vendor_bank_account_name' => $validated['vendor_bank_account_name'],
+                'vendor_bank_name' => $validated['vendor_bank_name'] ?? '',
+                'vendor_bank_account_no' => $validated['vendor_bank_account_no'] ?? '',
+                'vendor_bank_account_name' => $validated['vendor_bank_account_name'] ?? '',
                 'is_active' => true,
             ]);
 
