@@ -5,9 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Categories;
 use App\Models\User;
 use App\Models\Vendors;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
@@ -83,7 +81,7 @@ class VendorsController extends Controller
 
         $user->sendVendorEmailVerificationNotification();
 
-        return redirect('/')->withSuccess('Vendor registration successful!');
+        return redirect('/')->with('success', 'Vendor registration successful. Please verify your email before logging in.');
     }
 
     public function login(Request $request)

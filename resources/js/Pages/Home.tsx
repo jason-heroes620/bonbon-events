@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import type { Event } from "@/types";
 import "../../css/home.css";
@@ -51,6 +51,10 @@ const Home = () => {
         | null
         | undefined;
 
+    const flash = (page.props as any)?.flash as
+        | { success?: string; error?: string; status?: string }
+        | undefined;
+
     const isLoggedIn = useMemo(() => Boolean(authUser), [authUser]);
 
     useEffect(() => {
@@ -58,6 +62,12 @@ const Home = () => {
             setEvents(response.data);
         });
     }, []);
+
+    useEffect(() => {
+        if (flash?.success) toast.success(flash.success);
+        else if (flash?.error) toast.error(flash.error);
+        else if (flash?.status) toast.info(flash.status);
+    }, [flash?.success, flash?.error, flash?.status]);
 
     useEffect(() => {
         if (!showUserMenu) return;
