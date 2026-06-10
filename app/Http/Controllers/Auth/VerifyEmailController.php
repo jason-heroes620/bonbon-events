@@ -43,7 +43,7 @@ class VerifyEmailController extends Controller
 
         if (!$authedUser) {
             if (($user->role ?? null) === 'vendor') {
-                return redirect('/vendor/login')->with('status', 'Email verified. Please log in.');
+                return redirect('/')->with('status', 'Email verified. Please log in.');
             }
 
             return redirect()->route('login')->with('status', 'Email verified. Please log in.');
