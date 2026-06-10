@@ -63,7 +63,7 @@
             </div>
             <div class="col col-80">
                 <p class="subtitle muted">Suite 9.01, Level 9, Menara Summit, Persiaran Kewajipan, USJ 1, UEP, 47600 Subang Jaya</p>
-                <p class="subtitle muted">Hotline: 1700 82 8892 Mobile: +6012 745 6785   Email: hello@bonbon.com.my</p>
+                <p class="subtitle muted">Mobile: +6012 745 6750   Email: hello@bonbon.com.my</p>
             </div>
         </div>
         <div class="spacer-8"></div>
