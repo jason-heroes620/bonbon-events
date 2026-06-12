@@ -227,63 +227,74 @@ export default function EventSummary({
                                         </div>
                                     </div>
                                     <div className="divide-y">
-                                        {group.booths.map((booth) => (
-                                            <div
-                                                key={booth.booth_id}
-                                                className="px-4 py-3 flex flex-col gap-1"
-                                            >
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="text-sm font-medium">
-                                                        {booth.booth_name}
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span
-                                                            className={cn(
-                                                                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                                                booth.occupied
-                                                                    ? "bg-emerald-100 text-emerald-800"
-                                                                    : "bg-gray-100 text-gray-800",
-                                                            )}
-                                                        >
-                                                            {booth.occupied
-                                                                ? "Occupied"
-                                                                : "Available"}
-                                                        </span>
-                                                        {booth.occupied ? (
+                                        {[...group.booths]
+                                            .sort((a, b) =>
+                                                a.booth_name.localeCompare(
+                                                    b.booth_name,
+                                                    undefined,
+                                                    {
+                                                        numeric: true,
+                                                        sensitivity: "base",
+                                                    },
+                                                ),
+                                            )
+                                            .map((booth) => (
+                                                <div
+                                                    key={booth.booth_id}
+                                                    className="px-4 py-3 flex flex-col gap-1"
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="text-sm font-medium">
+                                                            {booth.booth_name}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
                                                             <span
                                                                 className={cn(
                                                                     "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                                                    booth.is_paid
+                                                                    booth.occupied
                                                                         ? "bg-emerald-100 text-emerald-800"
-                                                                        : "bg-amber-100 text-amber-800",
+                                                                        : "bg-gray-100 text-gray-800",
                                                                 )}
                                                             >
-                                                                {booth.is_paid
-                                                                    ? "Paid"
-                                                                    : "Unpaid"}
+                                                                {booth.occupied
+                                                                    ? "Occupied"
+                                                                    : "Available"}
                                                             </span>
+                                                            {booth.occupied ? (
+                                                                <span
+                                                                    className={cn(
+                                                                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                                                        booth.is_paid
+                                                                            ? "bg-emerald-100 text-emerald-800"
+                                                                            : "bg-amber-100 text-amber-800",
+                                                                    )}
+                                                                >
+                                                                    {booth.is_paid
+                                                                        ? "Paid"
+                                                                        : "Unpaid"}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        {booth.vendor_name
+                                                            ? booth.vendor_name
+                                                            : "-"}
+
+                                                        {booth.occupied &&
+                                                        booth.application_id ? (
+                                                            <div className="text-xs">
+                                                                <Link
+                                                                    href={`/applications/${booth.application_id}`}
+                                                                    className="underline"
+                                                                >
+                                                                    Application
+                                                                </Link>
+                                                            </div>
                                                         ) : null}
                                                     </div>
                                                 </div>
-                                                <div className="flex justify-between text-xs text-muted-foreground">
-                                                    {booth.vendor_name
-                                                        ? booth.vendor_name
-                                                        : "-"}
-
-                                                    {booth.occupied &&
-                                                    booth.application_id ? (
-                                                        <div className="text-xs">
-                                                            <Link
-                                                                href={`/applications/${booth.application_id}`}
-                                                                className="underline"
-                                                            >
-                                                                Application
-                                                            </Link>
-                                                        </div>
-                                                    ) : null}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
                                     </div>
                                 </div>
                             ))}
