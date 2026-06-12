@@ -11,7 +11,6 @@ use App\Models\Events;
 use App\Models\Locations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -61,8 +60,9 @@ class EventsController extends Controller
                 ])
                 ->groupBy('orders.application_id');
 
-            $occupants = DB::table('application_booths')
-                ->join('applications', 'applications.application_id', '=', 'application_booths.application_id')
+            $occupants = DB::table('event_booths')
+                ->join('application_events', 'application_events.application_event_id', '=', 'event_booths.occupied_by_application_event_id')
+                ->join('applications', 'applications.application_id', '=', 'application_events.application_id')
                 ->join('vendors', 'vendors.vendor_id', '=', 'applications.vendor_id')
                 ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
                     $join->on('latest_orders.application_id', '=', 'applications.application_id');
@@ -71,16 +71,18 @@ class EventsController extends Controller
                     $join->on('orders.application_id', '=', 'applications.application_id')
                         ->on('orders.created_at', '=', 'latest_orders.max_created_at');
                 })
-                ->where('application_booths.is_active', true)
-                ->where('applications.event_id', $selectedEventId)
-                ->where('applications.application_status', 'approved')
+                ->where('event_booths.event_id', $selectedEventId)
+                ->where('event_booths.is_active', true)
+                ->where('event_booths.occupied', true)
+                ->whereNotNull('event_booths.occupied_by_application_event_id')
+                ->where('application_events.application_status', 'approved')
                 ->select([
-                    'application_booths.booth_id as booth_id',
+                    'event_booths.booth_id as booth_id',
                     DB::raw('MAX(vendors.vendor_name) as vendor_name'),
                     DB::raw('MAX(applications.application_id) as application_id'),
                     DB::raw('MAX(CASE WHEN orders.is_paid = 1 THEN 1 ELSE 0 END) as is_paid'),
                 ])
-                ->groupBy('application_booths.booth_id');
+                ->groupBy('event_booths.booth_id');
 
             $rows = EventBooths::query()
                 ->where('event_booths.event_id', $selectedEventId)
@@ -132,6 +134,134 @@ class EventsController extends Controller
         ]);
     }
 
+    public function layoutOverview(Events $event): Response
+    {
+        $latestOrders = DB::table('orders')
+            ->where('orders.is_active', true)
+            ->select([
+                'orders.application_id as application_id',
+                DB::raw('MAX(orders.created_at) as max_created_at'),
+            ])
+            ->groupBy('orders.application_id');
+
+        $occupants = DB::table('event_booths')
+            ->join('application_events', 'application_events.application_event_id', '=', 'event_booths.occupied_by_application_event_id')
+            ->join('applications', 'applications.application_id', '=', 'application_events.application_id')
+            ->join('vendors', 'vendors.vendor_id', '=', 'applications.vendor_id')
+            ->leftJoinSub($latestOrders, 'latest_orders', function ($join) {
+                $join->on('latest_orders.application_id', '=', 'applications.application_id');
+            })
+            ->leftJoin('orders', function ($join) {
+                $join->on('orders.application_id', '=', 'applications.application_id')
+                    ->on('orders.created_at', '=', 'latest_orders.max_created_at');
+            })
+            ->where('event_booths.event_id', $event->event_id)
+            ->where('event_booths.is_active', true)
+            ->where('event_booths.occupied', true)
+            ->whereNotNull('event_booths.occupied_by_application_event_id')
+            ->where('application_events.application_status', 'approved')
+            ->select([
+                'event_booths.booth_id as booth_id',
+                DB::raw('MAX(vendors.vendor_name) as vendor_name'),
+                DB::raw('MAX(applications.application_id) as application_id'),
+                DB::raw('MAX(CASE WHEN orders.is_paid = 1 THEN 1 ELSE 0 END) as is_paid'),
+            ])
+            ->groupBy('event_booths.booth_id');
+
+        $rows = EventBooths::query()
+            ->where('event_booths.event_id', $event->event_id)
+            ->where('event_booths.is_active', true)
+            ->join('booths', 'event_booths.booth_id', '=', 'booths.booth_id')
+            ->join('booth_types', 'booths.booth_type_id', '=', 'booth_types.booth_type_id')
+            ->leftJoinSub($occupants, 'occupants', function ($join) {
+                $join->on('occupants.booth_id', '=', 'booths.booth_id');
+            })
+            ->orderBy('booth_types.booth_type_name', 'asc')
+            ->orderBy('booths.booth_name', 'asc')
+            ->get([
+                'booth_types.booth_type_id as booth_type_id',
+                'booth_types.booth_type_name as booth_type_name',
+                'booths.booth_id as booth_id',
+                'booths.booth_name as booth_name',
+                'event_booths.occupied as occupied',
+                DB::raw('occupants.vendor_name as vendor_name'),
+            ]);
+
+        $groups = $rows
+            ->groupBy('booth_type_id')
+            ->map(function ($items) {
+                $first = $items->first();
+                return [
+                    'booth_type_id' => $first->booth_type_id,
+                    'booth_type_name' => $first->booth_type_name,
+                    'booths' => $items->map(function ($row) {
+                        return [
+                            'booth_id' => $row->booth_id,
+                            'booth_name' => $row->booth_name,
+                            'occupied' => (bool) $row->occupied,
+                            'vendor_name' => $row->vendor_name,
+                        ];
+                    })->values(),
+                ];
+            })
+            ->values();
+
+        return Inertia::render('events/layout-overview', [
+            'event' => $event->only(['event_id', 'event_name', 'event_booth_layout']),
+            'groups' => $groups,
+        ]);
+    }
+
+    public function publicDetail(Events $event): Response
+    {
+        $event->load(['location']);
+
+        $totalBooths = (int) EventBooths::query()
+            ->where('event_id', $event->event_id)
+            ->where('is_active', true)
+            ->count();
+
+        $unoccupiedBooths = (int) EventBooths::query()
+            ->where('event_id', $event->event_id)
+            ->where('is_active', true)
+            ->where('occupied', false)
+            ->count();
+
+        $occupiedBooths = $totalBooths - $unoccupiedBooths;
+
+        $events = Events::query()
+            ->where('is_active', true)
+            ->where('event_end_date', '>=', now()->toDateString())
+            ->orderBy('event_start_date', 'asc')
+            ->get([
+                'event_id',
+                'event_name',
+                'event_date',
+                'event_time',
+                'venue',
+                'event_image',
+                'event_start_date',
+                'event_end_date',
+                'event_description',
+            ]);
+
+        $images = array_values(array_filter([(string) ($event->event_image ?? '')]));
+        if (empty($images)) {
+            $images = ['/empty_image.png'];
+        }
+
+        return Inertia::render('events/detail', [
+            'event' => $event,
+            'events' => $events,
+            'images' => $images,
+            'boothStats' => [
+                'totalBooths' => $totalBooths,
+                'occupiedBooths' => $occupiedBooths,
+                'unoccupiedBooths' => $unoccupiedBooths,
+            ],
+        ]);
+    }
+
     public function create(): Response
     {
         $locations = Locations::query()
@@ -167,11 +297,12 @@ class EventsController extends Controller
     {
         $validated = $request->validate([
             'event_name' => ['required', 'string', 'max:255'],
-            'event_description' => ['nullable', 'string', 'max:255'],
+            'event_description' => ['nullable', 'string'],
             'event_date' => ['required', 'string', 'max:255'],
             'event_time' => ['required', 'string', 'max:255'],
             'location_id' => ['required', 'uuid', 'exists:locations,location_id'],
             'venue' => ['nullable', 'string', 'max:255'],
+            'event_image' => ['nullable', 'image', 'max:5120'],
             'event_booth_layout' => ['nullable', 'image', 'max:5120'],
             'event_start_date' => ['required', 'date'],
             'event_end_date' => ['required', 'date', 'after_or_equal:event_start_date'],
@@ -200,6 +331,13 @@ class EventsController extends Controller
             $path = $request->file('event_booth_layout')->storePublicly('event_booth_layouts', 'public');
             $event->update([
                 'event_booth_layout' => "/storage/{$path}",
+            ]);
+        }
+
+        if ($request->hasFile('event_image')) {
+            $path = $request->file('event_image')->storePublicly('event_images', 'public');
+            $event->update([
+                'event_image' => "/storage/{$path}",
             ]);
         }
 
@@ -272,11 +410,12 @@ class EventsController extends Controller
     {
         $validated = $request->validate([
             'event_name' => ['required', 'string', 'max:255'],
-            'event_description' => ['nullable', 'string', 'max:255'],
+            'event_description' => ['nullable', 'string'],
             'event_date' => ['required', 'string', 'max:255'],
             'event_time' => ['required', 'string', 'max:255'],
             'location_id' => ['required', 'uuid', 'exists:locations,location_id'],
             'venue' => ['nullable', 'string', 'max:255'],
+            'event_image' => ['nullable', 'image', 'max:5120'],
             'event_booth_layout' => ['nullable', 'image', 'max:5120'],
             'event_start_date' => ['required', 'date'],
             'event_end_date' => ['required', 'date', 'after_or_equal:event_start_date'],
@@ -305,6 +444,13 @@ class EventsController extends Controller
             $path = $request->file('event_booth_layout')->storePublicly('event_booth_layouts', 'public');
             $event->update([
                 'event_booth_layout' => "/storage/{$path}",
+            ]);
+        }
+
+        if ($request->hasFile('event_image')) {
+            $path = $request->file('event_image')->storePublicly('event_images', 'public');
+            $event->update([
+                'event_image' => "/storage/{$path}",
             ]);
         }
 
@@ -354,7 +500,7 @@ class EventsController extends Controller
         return redirect('/events');
     }
 
-    public function eventsList(Request $request)
+    public function eventsList()
     {
         $events = Events::query()
             ->where('is_active', true)

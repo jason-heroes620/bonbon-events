@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Invoices;
 use App\Models\OrderItems;
 use App\Models\Orders;
+use App\Models\Payments;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -50,7 +53,23 @@ class InvoicesController extends Controller
 
     public function show(Invoices $invoice): Response
     {
-        [$order, $items, $subtotal, $discount, $total, $application, $vendor, $eventName] = $this->getInvoice($invoice);
+        [$order, $items, $subtotal, $discount, $total, $vendor, $eventName] = $this->getInvoice($invoice);
+
+        $payment = null;
+        if ($invoice->order_id) {
+            $payment = Payments::query()
+                ->where('order_id', $invoice->order_id)
+                ->orderByDesc('created_at')
+                ->first([
+                    'payment_id',
+                    'transaction_id',
+                    'payment_amount',
+                    'payment_date',
+                    'payment_method',
+                    'payment_file',
+                    'created_at',
+                ]);
+        }
 
         return Inertia::render('invoices/[id]', [
             'invoice' => $invoice->only([
@@ -71,12 +90,66 @@ class InvoicesController extends Controller
             'total' => $total,
             'eventName' => $eventName,
             'vendor' => $vendor,
+            'payment' => $payment,
         ]);
+    }
+
+    public function updatePayment(Request $request, Invoices $invoice)
+    {
+        $validated = $request->validate([
+            'transaction_id' => ['required', 'string', 'max:50'],
+            'payment_amount' => ['required', 'numeric', 'min:0'],
+            'payment_date' => ['required', 'date'],
+            'payment_method' => ['required', 'string', 'max:255'],
+            'payment_file' => ['required', 'file', 'max:5120'],
+        ]);
+
+        if (!$invoice->order_id) {
+            throw ValidationException::withMessages([
+                'invoice' => ['Invoice has no order attached.'],
+            ]);
+        }
+
+        $order = Orders::query()->where('order_id', $invoice->order_id)->first();
+        if (!$order) {
+            throw ValidationException::withMessages([
+                'order' => ['Order not found for this invoice.'],
+            ]);
+        }
+
+        $paymentFilePath = null;
+        if ($request->hasFile('payment_file')) {
+            $path = $request->file('payment_file')->storePublicly('payments', 'public');
+            $paymentFilePath = "/storage/{$path}";
+        }
+
+        DB::transaction(function () use ($invoice, $order, $validated, $paymentFilePath) {
+            Payments::create([
+                'order_id' => $order->order_id,
+                'order_no' => $order->order_no,
+                'transaction_id' => $validated['transaction_id'],
+                'payment_amount' => (float) $validated['payment_amount'],
+                'payment_date' => Carbon::parse((string) $validated['payment_date'])->startOfDay()->toDateTimeString(),
+                'payment_method' => $validated['payment_method'],
+                'payment_file' => $paymentFilePath,
+                'payment_status' => 1,
+            ]);
+
+            $order->update([
+                'is_paid' => true,
+            ]);
+
+            $invoice->update([
+                'invoice_status' => 'paid',
+            ]);
+        });
+
+        return redirect()->back();
     }
 
     public function previewInvoice(Invoices $invoice)
     {
-        [$order, $items, $subtotal, $discount, $total, $application, $vendor, $eventName] = $this->getInvoice($invoice);
+        [$order, $items, $subtotal, $discount, $total, $vendor, $eventName] = $this->getInvoice($invoice);
 
         return view('invoices.template', [
             'order' => $order,
@@ -96,7 +169,7 @@ class InvoicesController extends Controller
         $invoice->invoice_status = strtoupper($invoice->invoice_status);
 
         $order = Orders::query()
-            ->with(['application.vendor', 'application.event'])
+            ->with(['application.vendor', 'application.events.event'])
             ->where('order_id', $invoice->order_id)
             ->firstOrFail();
 
@@ -116,8 +189,12 @@ class InvoicesController extends Controller
 
         $application = $order->application;
         $vendor = $application?->vendor;
-        $eventName = $application?->event?->event_name;
+        $eventName = $application?->events
+            ?->map(fn($ae) => $ae->event?->event_name)
+            ->filter()
+            ->values()
+            ->join(', ');
 
-        return [$order, $items, $subtotal, $discount, $total, $application, $vendor, $eventName];
+        return [$order, $items, $subtotal, $discount, $total, $vendor, $eventName];
     }
 }

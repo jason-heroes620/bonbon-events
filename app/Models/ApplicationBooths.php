@@ -16,6 +16,7 @@ class ApplicationBooths extends Model
 
     protected $fillable = [
         'application_id',
+        'application_event_id',
         'booth_id',
         'is_active',
     ];

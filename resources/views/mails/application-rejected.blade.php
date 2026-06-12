@@ -170,7 +170,7 @@
            <div class="email-address">
                 <div>
                     <span  class="footer-text">Contact No.: </span><br>
-                    <span class="footer-text">012 7456 785</span>
+                    <span class="footer-text">012 7456 750</span>
                 </div>
 
                 <div>

@@ -17,9 +17,11 @@ class Payments extends Model
         'transaction_id',
         'payment_amount',
         'payment_date',
+        'payment_method',
         'issuing_bank',
         'cc_name',
         'cc_number',
+        'payment_file',
         'payment_status',
     ];
 

@@ -5,7 +5,7 @@ namespace App\Jobs;
 use App\Models\Invoices;
 use App\Models\OrderItems;
 use App\Models\Orders;
-use Barryvdh\DomPDF\Facade\Pdf; // Assuming you use barryvdh/laravel-dompdf
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -30,7 +30,7 @@ class GenerateInvoicePdf implements ShouldQueue
     public function handle(): void
     {
         $order = Orders::query()
-            ->with(['application.vendor', 'application.event'])
+            ->with(['application.vendor', 'application.events.event'])
             ->where('order_id', $this->order->order_id)
             ->first() ?? $this->order;
 
@@ -55,9 +55,12 @@ class GenerateInvoicePdf implements ShouldQueue
 
         $application = $order->application;
         $vendor = $application?->vendor;
-        $eventName = $application?->event?->event_name;
+        $eventName = $application?->events
+            ?->map(fn($ae) => $ae->event?->event_name)
+            ->filter()
+            ->values()
+            ->join(', ');
 
-        // 1. Render the HTML view into a PDF
         $pdf = Pdf::loadView('invoices.template', [
             'order' => $order,
             'invoice' => $invoice,
@@ -71,18 +74,12 @@ class GenerateInvoicePdf implements ShouldQueue
             'companyName' => (string) config('app.name', 'BonBon'),
         ]);
 
-        // 2. Define a secure file path
         $fileName = 'invoices/invoice_' . $invoice->invoice_no . '_' . time() . '.pdf';
 
-        // 3. Save it to local storage or S3 bucket
         Storage::disk('local')->put($fileName, $pdf->output());
 
-        // 4. Update order with the PDF path (Optional)
         $invoice->update([
             'invoice_file' => $fileName,
         ]);
-
-        // 5. Trigger email notification with attachment (Optional)
-        // Mail::to($this->order->user)->send(new InvoicePaidMail($this->order));
     }
 }

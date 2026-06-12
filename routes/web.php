@@ -31,9 +31,22 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/payments/{applicationCode}', [PaymentsController::class, 'show'])->name('payments.show');
+Route::post('/payments/{applicationCode}/prepare', [PaymentsController::class, 'prepare'])
+    ->middleware('throttle:6,1')
+    ->name('payments.prepare');
+Route::post('/payments/{applicationCode}/request-invoice', [PaymentsController::class, 'requestInvoice'])
+    ->middleware('throttle:6,1')
+    ->name('payments.request-invoice');
 Route::get('/payments/{applicationCode}/ipay88', [PaymentsController::class, 'redirectToIpay88'])->name('payments.ipay88');
 Route::match(['GET', 'POST'], '/ipay88/response', [PaymentsController::class, 'response'])->name('ipay88.response');
 // Route::post('/ipay88/backend', [PaymentsController::class, 'backend'])->name('ipay88.backend');
+Route::get('/events/{event}/layout-overview', [EventsController::class, 'layoutOverview'])
+    ->whereUuid('event')
+    ->name('events.layout-overview');
+Route::get('/events/{event}/detail', [EventsController::class, 'publicDetail'])
+    ->whereUuid('event')
+    ->name('events.detail');
+
 
 Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
@@ -70,9 +83,15 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::get('/events/create', [EventsController::class, 'create'])->name('events.create');
     Route::post('/events', [EventsController::class, 'store'])->name('events.store');
     Route::get('/events/summary', [EventsController::class, 'summary'])->name('events.summary');
-    Route::get('/events/{event}', [EventsController::class, 'edit'])->name('events.edit');
-    Route::post('/events/{event}', [EventsController::class, 'update'])->name('events.update');
-    Route::delete('/events/{event}', [EventsController::class, 'destroy'])->name('events.destroy');
+    Route::get('/events/{event}', [EventsController::class, 'edit'])
+        ->whereUuid('event')
+        ->name('events.edit');
+    Route::post('/events/{event}', [EventsController::class, 'update'])
+        ->whereUuid('event')
+        ->name('events.update');
+    Route::delete('/events/{event}', [EventsController::class, 'destroy'])
+        ->whereUuid('event')
+        ->name('events.destroy');
 
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OrdersController::class, 'show'])->name('orders.show');
@@ -81,6 +100,14 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::get('/invoices/{invoice}', [InvoicesController::class, 'show'])->name('invoices.show');
     Route::get('/deposit-refund', [DepositRefundController::class, 'index'])->name('deposit-refund.index');
     Route::get('/deposit-refund/export', [DepositRefundController::class, 'export'])->name('deposit-refund.export');
+    Route::post('/deposit-refund', [DepositRefundController::class, 'store'])->name('deposit-refund.store');
+    Route::post('/deposit-refund/request-bank-info', [DepositRefundController::class, 'requestBankInfo'])
+        ->middleware('throttle:6,1')
+        ->name('deposit-refund.request-bank-info');
+    Route::get('/mail/preview/request-bank-info/{applicationCode}', [DepositRefundController::class, 'previewRequestBankInfo'])
+        ->name('mail.preview.request-bank-info');
+    Route::post('/invoices/{invoice}/update-payment', [InvoicesController::class, 'updatePayment'])
+        ->name('invoices.update-payment');
 
     Route::get('/applications', [ApplicationsController::class, 'index'])->name('applications.index');
     Route::get('/applications/create', [ApplicationsController::class, 'create'])->name('applications.create');
@@ -90,8 +117,21 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
         ->name('applications.confirm-booths');
     Route::post('/applications/{application}/release-booths', [ApplicationsController::class, 'releaseBooths'])
         ->name('applications.release-booths');
+    Route::post('/applications/{application}/events/{applicationEvent}/confirm-booths', [ApplicationsController::class, 'confirmBoothsForEvent'])
+        ->name('applications.events.confirm-booths');
+    Route::post('/applications/{application}/events/{applicationEvent}/release-booths', [ApplicationsController::class, 'releaseBoothsForEvent'])
+        ->name('applications.events.release-booths');
+    Route::post('/applications/{application}/events/{applicationEvent}/update-booth-qty', [ApplicationsController::class, 'updateBoothQtyForEvent'])
+        ->name('applications.events.update-booth-qty');
+    Route::post('/applications/{application}/events/{applicationEvent}/update-status', [ApplicationsController::class, 'updateEventStatus'])
+        ->name('applications.events.update-status');
     Route::post('/applications/{application}/update-status', [ApplicationsController::class, 'updateStatus'])
         ->name('applications.update-status');
+    Route::post('/applications/{application}/send-payment-link', [ApplicationsController::class, 'sendPaymentLink'])
+        ->middleware('throttle:6,1')
+        ->name('applications.send-payment-link');
+    Route::post('/applications/{application}/update-discount', [ApplicationsController::class, 'updateDiscount'])
+        ->name('applications.update-discount');
     Route::post('/applications/{application}/generate-invoice', [ApplicationsController::class, 'generateInvoice'])
         ->name('applications.generate-invoice');
     Route::post('/applications/{application}/send-payment-reminder', [ApplicationsController::class, 'sendPaymentReminder'])
@@ -156,8 +196,13 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+Route::post('/events/participate-multi', [ApplicationsController::class, 'participateMulti'])
+    ->middleware('auth')
+    ->name('events.participate-multi');
+
 Route::post('/events/{event}/participate', [ApplicationsController::class, 'participate'])
     ->middleware('auth')
+    ->whereUuid('event')
     ->name('events.participate');
 
 Route::get('/events-list', [EventsController::class, 'eventsList'])->name('events-list.index');

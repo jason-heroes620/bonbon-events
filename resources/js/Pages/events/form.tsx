@@ -1,6 +1,9 @@
 import { router, useForm } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Quill from "quill";
+import "quill/dist/quill.snow.css";
+import { format, isSameDay, isSameMonth, parseISO } from "date-fns";
 import type {
     Event,
     Location,
@@ -9,7 +12,7 @@ import type {
     Booth,
     EventBooth,
 } from "@/types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { toast } from "sonner";
@@ -21,6 +24,7 @@ type EventFormData = {
     event_time: string;
     location_id: string;
     venue: string;
+    event_image: File | null;
     event_booth_layout: File | null;
     event_start_date: string;
     event_end_date: string;
@@ -69,6 +73,7 @@ export default function EventForm({
         event_time: event?.event_time ?? "",
         location_id: event?.location_id ?? "",
         venue: event?.venue ?? "",
+        event_image: null,
         event_booth_layout: null,
         event_start_date: event?.event_start_date ?? "",
         event_end_date: event?.event_end_date ?? "",
@@ -77,6 +82,88 @@ export default function EventForm({
         deposit_id: event?.deposit_id ?? "",
         booths: event?.booths ?? [],
     });
+
+    const quillContainerRef = useRef<HTMLDivElement | null>(null);
+    const quillRef = useRef<Quill | null>(null);
+
+    const [eventDateTouched, setEventDateTouched] = useState(false);
+
+    useEffect(() => {
+        if (!quillContainerRef.current) return;
+        if (quillRef.current) return;
+
+        const quill = new Quill(quillContainerRef.current, {
+            theme: "snow",
+            modules: {
+                toolbar: [
+                    [{ header: [1, 2, 3, false] }],
+                    ["bold", "italic", "underline", "strike"],
+                    [{ list: "ordered" }, { list: "bullet" }],
+                    [{ align: [] }],
+                    [{ indent: "-1" }, { indent: "+1" }],
+                    ["link"],
+                    ["clean"],
+                ],
+            },
+        });
+
+        quillRef.current = quill;
+
+        quill.root.innerHTML =
+            form.data.event_description?.trim() === ""
+                ? ""
+                : form.data.event_description;
+
+        quill.on("text-change", () => {
+            const html = quill.root.innerHTML;
+            const normalized = html === "<p><br></p>" ? "" : html;
+            form.setData("event_description", normalized);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (event) return;
+        if (eventDateTouched) return;
+        if (!form.data.event_start_date || !form.data.event_end_date) return;
+
+        const start = parseISO(form.data.event_start_date);
+        const end = parseISO(form.data.event_end_date);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+            return;
+
+        let suggested = "";
+        if (isSameDay(start, end)) {
+            suggested = format(start, "dd, MMM");
+        } else if (isSameMonth(start, end)) {
+            suggested = `${format(start, "dd")} - ${format(end, "dd")}, ${format(start, "MMM")}`;
+        } else {
+            suggested = `${format(start, "dd MMM")} - ${format(end, "dd MMM")}`;
+        }
+
+        if (suggested !== "" && suggested !== form.data.event_date) {
+            form.setData("event_date", suggested);
+        }
+    }, [
+        event,
+        eventDateTouched,
+        form.data.event_start_date,
+        form.data.event_end_date,
+        form.data.event_date,
+    ]);
+
+    const initialImageUrl = event?.event_image ?? null;
+    const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(
+        initialImageUrl,
+    );
+
+    useEffect(() => {
+        if (form.data.event_image instanceof File) {
+            const url = URL.createObjectURL(form.data.event_image);
+            setImagePreviewUrl(url);
+            return () => URL.revokeObjectURL(url);
+        }
+        setImagePreviewUrl(initialImageUrl);
+    }, [form.data.event_image, initialImageUrl]);
 
     const initialLayoutUrl = event?.event_booth_layout ?? null;
     const [layoutPreviewUrl, setLayoutPreviewUrl] = useState<string | null>(
@@ -204,7 +291,7 @@ export default function EventForm({
             <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                     <label htmlFor="event_name" className="text-sm font-medium">
-                        Name
+                        Event Name
                     </label>
                     <Input
                         id="event_name"
@@ -228,21 +315,67 @@ export default function EventForm({
                     >
                         Description
                     </label>
-                    <textarea
-                        id="event_description"
-                        className={textareaClassName}
-                        rows={3}
-                        value={form.data.event_description}
-                        onChange={(e) =>
-                            form.setData("event_description", e.target.value)
-                        }
+                    <div
+                        className="rounded-lg border border-input bg-transparent overflow-hidden aria-invalid:border-destructive"
                         aria-invalid={Boolean(form.errors.event_description)}
-                    />
+                    >
+                        <div ref={quillContainerRef} />
+                    </div>
                     {form.errors.event_description ? (
                         <p className="text-sm text-red-600">
                             {form.errors.event_description}
                         </p>
                     ) : null}
+                </div>
+
+                <div className="flex flex-row w-full md:grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2 w-full md:col-span-1">
+                        <label
+                            htmlFor="event_start_date"
+                            className="text-sm font-medium"
+                        >
+                            Start Date
+                        </label>
+                        <Input
+                            id="event_start_date"
+                            type="date"
+                            value={form.data.event_start_date}
+                            onChange={(e) =>
+                                form.setData("event_start_date", e.target.value)
+                            }
+                            aria-invalid={Boolean(form.errors.event_start_date)}
+                            min={new Date().toISOString().split("T")[0]}
+                        />
+                        {form.errors.event_start_date ? (
+                            <p className="text-sm text-red-600">
+                                {form.errors.event_start_date}
+                            </p>
+                        ) : null}
+                    </div>
+
+                    <div className="space-y-2 w-full md:col-span-1">
+                        <label
+                            htmlFor="event_end_date"
+                            className="text-sm font-medium"
+                        >
+                            End Date
+                        </label>
+                        <Input
+                            id="event_end_date"
+                            type="date"
+                            value={form.data.event_end_date}
+                            onChange={(e) =>
+                                form.setData("event_end_date", e.target.value)
+                            }
+                            aria-invalid={Boolean(form.errors.event_end_date)}
+                            min={form.data.event_start_date}
+                        />
+                        {form.errors.event_end_date ? (
+                            <p className="text-sm text-red-600">
+                                {form.errors.event_end_date}
+                            </p>
+                        ) : null}
+                    </div>
                 </div>
 
                 <div className="flex flex-row w-full md:grid md:grid-cols-2 gap-4">
@@ -256,9 +389,10 @@ export default function EventForm({
                         <Input
                             id="event_date"
                             value={form.data.event_date}
-                            onChange={(e) =>
-                                form.setData("event_date", e.target.value)
-                            }
+                            onChange={(e) => {
+                                setEventDateTouched(true);
+                                form.setData("event_date", e.target.value);
+                            }}
                             aria-invalid={Boolean(form.errors.event_date)}
                         />
                         {form.errors.event_date ? (
@@ -286,54 +420,6 @@ export default function EventForm({
                         {form.errors.event_time ? (
                             <p className="text-sm text-red-600">
                                 {form.errors.event_time}
-                            </p>
-                        ) : null}
-                    </div>
-                </div>
-
-                <div className="flex flex-row w-full md:grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2 w-full md:col-span-1">
-                        <label
-                            htmlFor="event_start_date"
-                            className="text-sm font-medium"
-                        >
-                            Start Date
-                        </label>
-                        <Input
-                            id="event_start_date"
-                            type="date"
-                            value={form.data.event_start_date}
-                            onChange={(e) =>
-                                form.setData("event_start_date", e.target.value)
-                            }
-                            aria-invalid={Boolean(form.errors.event_start_date)}
-                        />
-                        {form.errors.event_start_date ? (
-                            <p className="text-sm text-red-600">
-                                {form.errors.event_start_date}
-                            </p>
-                        ) : null}
-                    </div>
-
-                    <div className="space-y-2 w-full md:col-span-1">
-                        <label
-                            htmlFor="event_end_date"
-                            className="text-sm font-medium"
-                        >
-                            End Date
-                        </label>
-                        <Input
-                            id="event_end_date"
-                            type="date"
-                            value={form.data.event_end_date}
-                            onChange={(e) =>
-                                form.setData("event_end_date", e.target.value)
-                            }
-                            aria-invalid={Boolean(form.errors.event_end_date)}
-                        />
-                        {form.errors.event_end_date ? (
-                            <p className="text-sm text-red-600">
-                                {form.errors.event_end_date}
                             </p>
                         ) : null}
                     </div>
@@ -388,6 +474,39 @@ export default function EventForm({
                         <p className="text-sm text-red-600">
                             {form.errors.venue}
                         </p>
+                    ) : null}
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                    <label
+                        htmlFor="event_image"
+                        className="text-sm font-medium"
+                    >
+                        Event Image
+                    </label>
+                    <Input
+                        id="event_image"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            form.setData("event_image", file);
+                        }}
+                        aria-invalid={Boolean(form.errors.event_image)}
+                    />
+                    {form.errors.event_image ? (
+                        <p className="text-sm text-red-600">
+                            {form.errors.event_image}
+                        </p>
+                    ) : null}
+                    {imagePreviewUrl ? (
+                        <div className="rounded-md border bg-muted/20 p-2">
+                            <img
+                                src={imagePreviewUrl}
+                                alt="Event image preview"
+                                className="max-h-80 w-full rounded object-contain"
+                            />
+                        </div>
                     ) : null}
                 </div>
 

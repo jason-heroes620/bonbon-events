@@ -1,8 +1,8 @@
 import { router, useForm } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MultiSelect } from "@/components/ui/multi-select";
 import type { Category, Event, Vendor } from "@/types";
-import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import {
     Dialog,
@@ -11,18 +11,23 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Delete, DeleteIcon, X } from "lucide-react";
 
 type ApplicationStatus = "pending" | "approved" | "rejected" | "cancelled";
 
-type CreateApplicationFormData = {
+type CreateApplicationEventRow = {
     event_id: string;
-    vendor_id: string;
     participants: number;
     no_of_booths: number;
-    category: string;
     requirements: string;
     plug: boolean;
+};
+
+type CreateApplicationFormData = {
+    vendor_id: string;
+    category: string;
     application_status: ApplicationStatus;
+    events: CreateApplicationEventRow[];
 };
 
 type CreateApplicationFormProps = {
@@ -62,6 +67,14 @@ export default function CreateApplicationForm({
 }: CreateApplicationFormProps) {
     const [showVendorModal, setShowVendorModal] = useState(false);
 
+    const eventById = useMemo(() => {
+        const map = new Map<string, CreateApplicationFormProps["events"][0]>();
+        for (const event of events) {
+            map.set(event.event_id, event);
+        }
+        return map;
+    }, [events]);
+
     const categoryLabelById = useMemo(() => {
         const map = new Map<string, string>();
         for (const category of categories) {
@@ -79,19 +92,19 @@ export default function CreateApplicationForm({
     }, [vendors]);
 
     const form = useForm<CreateApplicationFormData>({
-        event_id: "",
         vendor_id: "",
-        participants: 1,
-        no_of_booths: 1,
         category: "",
-        requirements: "",
-        plug: false,
         application_status: "pending",
+        events: [],
     });
 
     const selectedVendor = useMemo(() => {
         return vendorById.get(form.data.vendor_id) ?? null;
     }, [form.data.vendor_id, vendorById]);
+
+    const selectedEventIds = useMemo(() => {
+        return form.data.events.map((row) => row.event_id);
+    }, [form.data.events]);
 
     const vendorCategoryText = useMemo(() => {
         const raw = selectedVendor?.category;
@@ -125,7 +138,60 @@ export default function CreateApplicationForm({
         form.setData("category", categoryValue);
     };
 
-    const submit = (e: FormEvent) => {
+    const onEventsChange = (eventIds: string[]) => {
+        const existingByEventId = new Map(
+            form.data.events.map((row) => [row.event_id, row] as const),
+        );
+
+        const nextRows: CreateApplicationEventRow[] = eventIds.map(
+            (eventId) => {
+                const existing = existingByEventId.get(eventId);
+                if (existing) return existing;
+                return {
+                    event_id: eventId,
+                    participants: 1,
+                    no_of_booths: 1,
+                    requirements: "",
+                    plug: true,
+                };
+            },
+        );
+
+        form.setData("events", nextRows);
+    };
+
+    const getRowIndexByEventId = (eventId: string) => {
+        return form.data.events.findIndex((row) => row.event_id === eventId);
+    };
+
+    const getRowError = (
+        eventId: string,
+        field: keyof Omit<CreateApplicationEventRow, "event_id">,
+    ) => {
+        const index = getRowIndexByEventId(eventId);
+        if (index < 0) return null;
+        const key = `events.${index}.${field}`;
+        return (form.errors as Record<string, string | undefined>)[key] ?? null;
+    };
+
+    const updateRow = (
+        eventId: string,
+        patch: Partial<Omit<CreateApplicationEventRow, "event_id">>,
+    ) => {
+        form.setData(
+            "events",
+            form.data.events.map((row) =>
+                row.event_id === eventId ? { ...row, ...patch } : row,
+            ),
+        );
+    };
+
+    const removeRow = (eventId: string) => {
+        const nextIds = selectedEventIds.filter((id) => id !== eventId);
+        onEventsChange(nextIds);
+    };
+
+    const submit = (e: any) => {
         e.preventDefault();
         form.clearErrors();
 
@@ -136,35 +202,7 @@ export default function CreateApplicationForm({
 
     return (
         <form onSubmit={submit} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <label htmlFor="event_id" className="text-sm font-medium">
-                        Event
-                    </label>
-                    <select
-                        id="event_id"
-                        className={selectClassName}
-                        value={form.data.event_id}
-                        onChange={(e) =>
-                            form.setData("event_id", e.target.value)
-                        }
-                    >
-                        <option value="" disabled>
-                            Select an event
-                        </option>
-                        {events.map((event) => (
-                            <option key={event.event_id} value={event.event_id}>
-                                {event.event_name}
-                            </option>
-                        ))}
-                    </select>
-                    {form.errors.event_id ? (
-                        <p className="text-sm text-destructive">
-                            {form.errors.event_id}
-                        </p>
-                    ) : null}
-                </div>
-
+            <div className="grid gap-4 md:grid-cols-2 md:items-end">
                 <div className="space-y-2">
                     <label htmlFor="vendor_id" className="text-sm font-medium">
                         Vendor
@@ -187,120 +225,250 @@ export default function CreateApplicationForm({
                             </option>
                         ))}
                     </select>
-                    <div className="flex items-center justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!selectedVendor}
-                            onClick={() => setShowVendorModal(true)}
-                        >
-                            View vendor
-                        </Button>
-                    </div>
                     {form.errors.vendor_id ? (
                         <p className="text-sm text-destructive">
                             {form.errors.vendor_id}
                         </p>
                     ) : null}
                 </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <label
-                        htmlFor="participants"
-                        className="text-sm font-medium"
+                <div className="flex items-center justify-end gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!selectedVendor}
+                        onClick={() => setShowVendorModal(true)}
                     >
-                        Participants
-                    </label>
-                    <Input
-                        id="participants"
-                        type="number"
-                        min={1}
-                        max={127}
-                        value={form.data.participants}
-                        onChange={(e) =>
-                            form.setData(
-                                "participants",
-                                Number(e.target.value || 0),
-                            )
-                        }
-                    />
-                    {form.errors.participants ? (
-                        <p className="text-sm text-destructive">
-                            {form.errors.participants}
-                        </p>
-                    ) : null}
-                </div>
-
-                <div className="space-y-2">
-                    <label
-                        htmlFor="no_of_booths"
-                        className="text-sm font-medium"
-                    >
-                        No. of Booths
-                    </label>
-                    <Input
-                        id="no_of_booths"
-                        type="number"
-                        min={1}
-                        max={127}
-                        value={form.data.no_of_booths}
-                        onChange={(e) =>
-                            form.setData(
-                                "no_of_booths",
-                                Number(e.target.value || 0),
-                            )
-                        }
-                    />
-                    {form.errors.no_of_booths ? (
-                        <p className="text-sm text-destructive">
-                            {form.errors.no_of_booths}
-                        </p>
-                    ) : null}
+                        View vendor
+                    </Button>
                 </div>
             </div>
 
             <div className="space-y-2">
-                <label htmlFor="requirements" className="text-sm font-medium">
-                    Requirements
-                </label>
-                <textarea
-                    id="requirements"
-                    className={textareaClassName}
-                    value={form.data.requirements}
-                    onChange={(e) =>
-                        form.setData("requirements", e.target.value)
+                <label className="text-sm font-medium">Events</label>
+                <MultiSelect
+                    options={events.map((event) => ({
+                        label: event.event_name,
+                        value: event.event_id,
+                    }))}
+                    onValueChange={onEventsChange}
+                    defaultValue={selectedEventIds}
+                    placeholder={
+                        selectedVendor
+                            ? "Select events"
+                            : "Select a vendor first"
                     }
-                    rows={4}
+                    variant="default"
+                    maxSelected={events.length}
+                    maxCount={3}
+                    disabled={!selectedVendor}
+                    aria-invalid={Boolean((form.errors as any).events)}
                 />
-                {form.errors.requirements ? (
+                {(form.errors as any).events ? (
                     <p className="text-sm text-destructive">
-                        {form.errors.requirements}
+                        {(form.errors as any).events}
                     </p>
                 ) : null}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3 md:items-end">
-                <div className="space-y-2">
-                    <label htmlFor="plug" className="text-sm font-medium">
-                        Plug
-                    </label>
-                    <select
-                        id="plug"
-                        className={selectClassName}
-                        value={form.data.plug ? "1" : "0"}
-                        onChange={(e) =>
-                            form.setData("plug", e.target.value === "1")
-                        }
-                    >
-                        <option value="0">No</option>
-                        <option value="1">Yes</option>
-                    </select>
-                </div>
+            <div className="space-y-2">
+                <div className="text-sm font-medium">Event Details</div>
+                <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                        <thead className="bg-muted/40">
+                            <tr>
+                                <th className="px-3 py-2 text-left font-medium">
+                                    Event
+                                </th>
+                                <th className="px-3 py-2 text-left font-medium">
+                                    Participants
+                                </th>
+                                <th className="px-3 py-2 text-left font-medium">
+                                    No. of Booths
+                                </th>
+                                <th className="px-3 py-2 text-left font-medium">
+                                    Requirements
+                                </th>
+                                <th className="px-3 py-2 text-left font-medium">
+                                    Plug
+                                </th>
+                                <th className="px-3 py-2 text-right font-medium">
+                                    Action
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {form.data.events.length === 0 ? (
+                                <tr>
+                                    <td
+                                        className="px-3 py-4 text-muted-foreground"
+                                        colSpan={6}
+                                    >
+                                        Select one or more events to fill in the
+                                        details.
+                                    </td>
+                                </tr>
+                            ) : (
+                                form.data.events.map((row) => {
+                                    const eventName =
+                                        eventById.get(row.event_id)
+                                            ?.event_name ?? row.event_id;
+                                    const participantsError = getRowError(
+                                        row.event_id,
+                                        "participants",
+                                    );
+                                    const boothsError = getRowError(
+                                        row.event_id,
+                                        "no_of_booths",
+                                    );
+                                    const requirementsError = getRowError(
+                                        row.event_id,
+                                        "requirements",
+                                    );
+                                    const plugError = getRowError(
+                                        row.event_id,
+                                        "plug",
+                                    );
 
-                <div className="space-y-2">
+                                    return (
+                                        <tr
+                                            key={row.event_id}
+                                            className="border-t"
+                                        >
+                                            <td className="px-3 py-2 align-top">
+                                                <div className="font-medium">
+                                                    {eventName}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-2 align-top">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={127}
+                                                    value={row.participants}
+                                                    onChange={(e) =>
+                                                        updateRow(
+                                                            row.event_id,
+                                                            {
+                                                                participants:
+                                                                    Number(
+                                                                        e.target
+                                                                            .value ||
+                                                                            0,
+                                                                    ),
+                                                            },
+                                                        )
+                                                    }
+                                                />
+                                                {participantsError ? (
+                                                    <p className="mt-1 text-xs text-destructive">
+                                                        {participantsError}
+                                                    </p>
+                                                ) : null}
+                                            </td>
+                                            <td className="px-3 py-2 align-top">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={127}
+                                                    value={row.no_of_booths}
+                                                    onChange={(e) =>
+                                                        updateRow(
+                                                            row.event_id,
+                                                            {
+                                                                no_of_booths:
+                                                                    Number(
+                                                                        e.target
+                                                                            .value ||
+                                                                            0,
+                                                                    ),
+                                                            },
+                                                        )
+                                                    }
+                                                />
+                                                {boothsError ? (
+                                                    <p className="mt-1 text-xs text-destructive">
+                                                        {boothsError}
+                                                    </p>
+                                                ) : null}
+                                            </td>
+                                            <td className="px-3 py-2 align-top">
+                                                <textarea
+                                                    className={
+                                                        textareaClassName
+                                                    }
+                                                    value={row.requirements}
+                                                    onChange={(e) =>
+                                                        updateRow(
+                                                            row.event_id,
+                                                            {
+                                                                requirements:
+                                                                    e.target
+                                                                        .value,
+                                                            },
+                                                        )
+                                                    }
+                                                    rows={2}
+                                                />
+                                                {requirementsError ? (
+                                                    <p className="mt-1 text-xs text-destructive">
+                                                        {requirementsError}
+                                                    </p>
+                                                ) : null}
+                                            </td>
+                                            <td className="px-3 py-2 align-top">
+                                                <select
+                                                    className={selectClassName}
+                                                    value={row.plug ? "1" : "0"}
+                                                    onChange={(e) =>
+                                                        updateRow(
+                                                            row.event_id,
+                                                            {
+                                                                plug:
+                                                                    e.target
+                                                                        .value ===
+                                                                    "1",
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    <option value="0">
+                                                        No
+                                                    </option>
+                                                    <option value="1">
+                                                        Yes
+                                                    </option>
+                                                </select>
+                                                {plugError ? (
+                                                    <p className="mt-1 text-xs text-destructive">
+                                                        {plugError}
+                                                    </p>
+                                                ) : null}
+                                            </td>
+                                            <td className="px-3 py-2 align-top text-right">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        removeRow(row.event_id)
+                                                    }
+                                                >
+                                                    <X color="red" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div className="flex justify-end">
+                {/* <div className="space-y-2 md:col-span-2">
                     <label
                         htmlFor="application_status"
                         className="text-sm font-medium"
@@ -323,7 +491,7 @@ export default function CreateApplicationForm({
                         <option value="rejected">Rejected</option>
                         <option value="cancelled">Cancelled</option>
                     </select>
-                </div>
+                </div> */}
 
                 <div className="flex justify-end gap-2">
                     <Button
@@ -333,7 +501,14 @@ export default function CreateApplicationForm({
                     >
                         Cancel
                     </Button>
-                    <Button type="submit" disabled={form.processing}>
+                    <Button
+                        type="submit"
+                        disabled={
+                            form.processing ||
+                            !selectedVendor ||
+                            form.data.events.length === 0
+                        }
+                    >
                         Create
                     </Button>
                 </div>

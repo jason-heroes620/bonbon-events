@@ -1,8 +1,17 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link } from "@inertiajs/react";
-import { buttonVariants } from "@/components/ui/button";
+import { Head, Link, useForm } from "@inertiajs/react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate } from "date-fns";
+import { Input } from "@/components/ui/input";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { useMemo, useState } from "react";
 
 type Invoice = {
     invoice_id: string;
@@ -40,6 +49,15 @@ type Vendor = {
     vendor_name: string;
 };
 
+type Payment = {
+    payment_id: string;
+    transaction_id: string;
+    payment_amount: number | string;
+    payment_date: string;
+    payment_method: string | null;
+    payment_file: string | null;
+} | null;
+
 type InvoiceShowProps = {
     invoice: Invoice;
     order: Order;
@@ -49,6 +67,7 @@ type InvoiceShowProps = {
     total: number | string;
     eventName: string | string;
     vendor: Vendor;
+    payment: Payment;
 };
 
 export default function InvoiceShow({
@@ -60,6 +79,7 @@ export default function InvoiceShow({
     total,
     eventName,
     vendor,
+    payment,
 }: InvoiceShowProps) {
     const formatAmount = (value: number | string) => {
         const n = typeof value === "number" ? value : Number(value);
@@ -70,6 +90,31 @@ export default function InvoiceShow({
             });
         return String(value);
     };
+
+    const [showUpdatePayment, setShowUpdatePayment] = useState(false);
+
+    const invoiceStatusLower = useMemo(
+        () => String(invoice.invoice_status ?? "").toLowerCase(),
+        [invoice.invoice_status],
+    );
+
+    const today = new Date().toISOString().split("T")[0] ?? "";
+
+    const paymentForm = useForm<{
+        transaction_id: string;
+        payment_amount: string;
+        payment_date: string;
+        payment_method: string;
+        payment_file: File | null;
+    }>({
+        transaction_id: payment?.transaction_id ?? "",
+        payment_amount: String(
+            invoice.invoice_amount ?? order?.total_price ?? 0,
+        ),
+        payment_date: today,
+        payment_method: payment?.payment_method ?? "",
+        payment_file: null,
+    });
 
     return (
         <AuthenticatedLayout
@@ -111,18 +156,28 @@ export default function InvoiceShow({
                             Status
                         </div>
 
-                        <span
-                            className={cn(
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                invoice.invoice_status === "paid"
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : invoice.invoice_status === "canceled"
-                                      ? "bg-gray-100 text-gray-800"
-                                      : "bg-amber-100 text-amber-800",
-                            )}
-                        >
-                            {invoice.invoice_status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span
+                                className={cn(
+                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                    invoiceStatusLower === "paid"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : invoiceStatusLower === "canceled"
+                                          ? "bg-gray-100 text-gray-800"
+                                          : "bg-amber-100 text-amber-800",
+                                )}
+                            >
+                                {invoice.invoice_status}
+                            </span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowUpdatePayment(true)}
+                            >
+                                Update Payment
+                            </Button>
+                        </div>
                     </div>
                     <div className="flex flex-row items-center justify-between rounded-lg border bg-white p-4">
                         <div className="text-sm text-muted-foreground">
@@ -141,6 +196,24 @@ export default function InvoiceShow({
                         </div>
                     </div>
                 </div>
+
+                {payment?.payment_file ? (
+                    <div className="rounded-lg border bg-white p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm text-muted-foreground">
+                                Payment File
+                            </div>
+                            <a
+                                href={payment.payment_file}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm text-blue-600 hover:underline"
+                            >
+                                View file
+                            </a>
+                        </div>
+                    </div>
+                ) : null}
 
                 <div className="rounded-lg border bg-white p-4">
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -223,7 +296,157 @@ export default function InvoiceShow({
                         {formatAmount(discount)}
                     </div>
                 </div>
+                <div className="flex justify-end">
+                    <div className="text-base font-semibold">
+                        Total: {formatAmount(total)}
+                    </div>
+                </div>
             </div>
+
+            <Dialog
+                open={showUpdatePayment}
+                onOpenChange={setShowUpdatePayment}
+            >
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Update Payment</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Transaction ID
+                            </label>
+                            <Input
+                                value={paymentForm.data.transaction_id}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "transaction_id",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.transaction_id ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.transaction_id}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment Amount
+                            </label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                value={paymentForm.data.payment_amount}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_amount",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_amount ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_amount}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment Date
+                            </label>
+                            <Input
+                                type="date"
+                                value={paymentForm.data.payment_date}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_date",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_date ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_date}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment Method
+                            </label>
+                            <Input
+                                value={paymentForm.data.payment_method}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_method",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_method ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_method}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment File
+                            </label>
+                            <Input
+                                type="file"
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_file",
+                                        e.target.files?.[0] ?? null,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_file ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_file}
+                                </p>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowUpdatePayment(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={paymentForm.processing}
+                            onClick={() =>
+                                paymentForm.post(
+                                    `/invoices/${invoice.invoice_id}/update-payment`,
+                                    {
+                                        forceFormData: true,
+                                        preserveScroll: true,
+                                        onSuccess: () => {
+                                            setShowUpdatePayment(false);
+                                            paymentForm.reset("payment_file");
+                                        },
+                                    },
+                                )
+                            }
+                        >
+                            Save
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }

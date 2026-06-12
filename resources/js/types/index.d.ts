@@ -73,28 +73,37 @@ export type Event = {
     updated_at?: string;
 };
 
-export type Application = {
+export type ApplicationStatus =
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "cancelled";
+
+export type ApplicationEvent = {
+    application_event_id: string;
     application_id: string;
     event_id: string;
-    application_code: string;
-    organization: string;
-    contact_person: string;
-    email: string;
-    contact_no: string;
-    company_registration_no: string;
     participants: number;
     no_of_booths: number;
-    description: string | null;
-    category: string;
     requirements: string | null;
-    social_medias?: any;
     plug: boolean;
-    monday_id: number;
-    application_status: "pending" | "approved" | "rejected" | "cancelled";
+    application_status: ApplicationStatus;
     event?: Event;
+    created_at?: string;
+    updated_at?: string;
+};
+
+export type Application = {
+    application_id: string;
+    user_id?: string | null;
+    vendor_id?: string | null;
+    application_code: string;
+    social_medias?: any;
+    application_status: ApplicationStatus;
+    events?: ApplicationEvent[];
     vendor?: Vendor;
     order?: Order | null;
-    created_at?: string;
+    created_at?: string | Date;
     updated_at?: string;
 };
 
@@ -130,17 +139,11 @@ export type Vendor = {
     updated_at?: string;
 };
 
-export type Deposit = {
-    deposit_id: string;
-    deposit_description: string;
-    deposit_amount: number | string;
-};
-
 export type Order = {
     order_id: string;
     order_no: string;
     total_price: number | string;
     discount_price: number | string;
     is_paid: boolean;
-    created_at: Date;
+    created_at?: string;
 };

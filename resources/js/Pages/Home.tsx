@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import type { Event } from "@/types";
 import "../../css/home.css";
-import { usePage, Link, useForm } from "@inertiajs/react";
+import { usePage, Link, useForm, router } from "@inertiajs/react";
 import {
     Dialog,
     DialogContent,
@@ -112,43 +112,8 @@ const Home = () => {
         return { month, day: d };
     };
 
-    const handleEventClick = async (event: Event) => {
-        if (!isLoggedIn) {
-            window.alert("You are not logged in.");
-            setShowLoginModal(true);
-            return;
-        }
-
-        if (authUser?.role !== "vendor") {
-            window.alert("Only vendor accounts can participate in events.");
-            return;
-        }
-
-        if (!authVendor?.vendor_id) {
-            window.alert("Vendor profile not found. Please log in again.");
-            return;
-        }
-
-        // check account, if not account, if not, direct to profile page to update
-        const response = await axios
-            .get("/vendor/profile/bank-account")
-            .then((res) => res.data);
-        if (!response.data) {
-            window.alert("Bank account not set. Please update your profile.");
-            window.location.href = "/vendor/profile";
-            setShowParticipateModal(false);
-            return;
-        }
-
-        setSelectedEvent(event);
-        setParticipateErrors({});
-        setParticipateData({
-            participants: 1,
-            no_of_booths: 1,
-            requirements: "",
-            plug: false,
-        });
-        setShowParticipateModal(true);
+    const handleEventClick = (event: Event) => {
+        router.visit(`/events/${event.event_id}/detail`);
     };
 
     const submitParticipation = async () => {
@@ -458,8 +423,6 @@ const Home = () => {
                 </div>
             </div>
 
-            <div className="grid" id="grid"></div>
-
             {/* <div className="nl">
                 <h2>Never miss a tail-wagging event</h2>
                 <p>
@@ -502,7 +465,7 @@ const Home = () => {
                         hello@bonbon.com.my
                     </span>
                     <span className="text-white text-sm font-medium">
-                        012-7456 785
+                        012-7456 750
                     </span>
                 </div>
             </div>

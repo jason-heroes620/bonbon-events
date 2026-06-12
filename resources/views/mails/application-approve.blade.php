@@ -159,7 +159,7 @@
         <div class="email-body">
             <p>Hi, {{ $userName }}!</p>
             <div>
-                <p> We're thrilled to confirm your participation as a vendor at the upcoming <b>"{{ $eventName }}"</b> event!</p>
+                <p> We're thrilled to confirm your participation as a vendor at the upcoming event!</p>
             </div>
             <p>
                 Application Code:
@@ -180,7 +180,7 @@
            <div class="email-address">
                 <div>
                     <span  class="footer-text">Contact No.: </span><br>
-                    <span class="footer-text">012 7456 785</span>
+                    <span class="footer-text">012 7456 750</span>
                 </div>
 
                 <div>

@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { CheckIcon, ChevronDown, XIcon } from "lucide-react";
+import { CheckIcon, ChevronDown, XCircle, XIcon } from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -31,31 +31,34 @@ export interface AnimationConfig {
     delay?: number;
 }
 
-const multiSelectVariants = cva("m-1 transition-all duration-300 ease-in-out", {
-    variants: {
-        variant: {
-            default:
-                "border-foreground/10 text-foreground bg-card hover:bg-card/80",
-            secondary:
-                "border-foreground/10 bg-secondary text-secondary-foreground hover:bg-secondary/80",
-            destructive:
-                "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-            inverted: "inverted",
+const multiSelectVariants = cva(
+    "transition-all duration-300 ease-in-out py-3 items-center",
+    {
+        variants: {
+            variant: {
+                default:
+                    "border-foreground/10 text-foreground bg-card hover:bg-card/80",
+                secondary:
+                    "border-foreground/10 bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                destructive:
+                    "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+                inverted: "inverted",
+            },
+            badgeAnimation: {
+                bounce: "hover:-translate-y-1 hover:scale-110",
+                pulse: "hover:animate-pulse",
+                wiggle: "hover:animate-wiggle",
+                fade: "hover:opacity-80",
+                slide: "hover:translate-x-1",
+                none: "",
+            },
         },
-        badgeAnimation: {
-            bounce: "hover:-translate-y-1 hover:scale-110",
-            pulse: "hover:animate-pulse",
-            wiggle: "hover:animate-wiggle",
-            fade: "hover:opacity-80",
-            slide: "hover:translate-x-1",
-            none: "",
+        defaultVariants: {
+            variant: "default",
+            badgeAnimation: "bounce",
         },
     },
-    defaultVariants: {
-        variant: "default",
-        badgeAnimation: "bounce",
-    },
-});
+);
 
 interface MultiSelectOption {
     label: string;
@@ -377,6 +380,16 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
             onValueChange([]);
         };
 
+        const clearExtraOptions = () => {
+            if (disabled) return;
+            const newSelectedValues = selectedValues.slice(
+                0,
+                responsiveSettings.maxCount,
+            );
+            setSelectedValues(newSelectedValues);
+            onValueChange(newSelectedValues);
+        };
+
         React.useEffect(() => {
             if (!resetOnDefaultValueChange) return;
             if (!arraysEqual(prevDefaultValueRef.current, defaultValue)) {
@@ -468,7 +481,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                     isPopoverOpen ? listboxId : undefined
                                 }
                                 aria-describedby={`${triggerDescriptionId} ${selectedCountId}`}
-                                disabled={disabled}
+                                // disabled={disabled}
                                 className={cn(
                                     "flex h-auto min-h-10 items-center justify-between rounded-md border bg-inherit p-1 hover:bg-inherit",
                                     autoSize ? "w-auto" : "w-full",
@@ -520,15 +533,43 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                                             <IconComponent className="mr-2 h-4 w-4" />
                                                         )}
                                                         {option?.label}
-                                                        <XIcon
-                                                            className="ml-2 h-3 w-3 cursor-pointer rounded-full opacity-60 hover:opacity-100"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
+                                                        <div
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={(
+                                                                event,
+                                                            ) => {
+                                                                event.stopPropagation();
                                                                 toggleOption(
                                                                     value,
                                                                 );
                                                             }}
-                                                        />
+                                                            onKeyDown={(
+                                                                event,
+                                                            ) => {
+                                                                if (
+                                                                    event.key ===
+                                                                        "Enter" ||
+                                                                    event.key ===
+                                                                        " "
+                                                                ) {
+                                                                    event.preventDefault();
+                                                                    event.stopPropagation();
+                                                                    toggleOption(
+                                                                        value,
+                                                                    );
+                                                                }
+                                                            }}
+                                                            className="-m-0.5 ml-2 h-4 w-4 cursor-pointer rounded-sm p-0.5 hover:bg-white/20 focus:ring-1 focus:ring-white/50 focus:outline-none"
+                                                        >
+                                                            <XCircle
+                                                                className={cn(
+                                                                    "h-3 w-3",
+                                                                    responsiveSettings.compactMode &&
+                                                                        "h-2.5 w-2.5",
+                                                                )}
+                                                            />
+                                                        </div>
                                                     </Badge>
                                                 );
                                             })}
@@ -552,10 +593,18 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
                                 )}
                                 <div className="flex items-center gap-1 pr-2">
                                     {selectedValues.length > 0 && (
-                                        <XIcon
-                                            className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100 cursor-pointer"
-                                            onClick={handleClear}
-                                        />
+                                        <div
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleClear(event);
+                                            }}
+                                            aria-label={`Clear all ${selectedValues.length} selected options`}
+                                            className="text-muted-foreground hover:text-foreground focus:ring-ring mx-2 flex h-4 w-4 cursor-pointer items-center justify-center rounded-sm focus:ring-2 focus:ring-offset-1 focus:outline-none"
+                                        >
+                                            <XIcon className="h-4 w-4" />
+                                        </div>
                                     )}
                                     <Separator
                                         orientation="vertical"

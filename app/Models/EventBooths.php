@@ -19,6 +19,7 @@ class EventBooths extends Model
         'booth_id',
         'booth_price',
         'occupied',
+        'occupied_by_application_event_id',
         'is_active',
     ];
 

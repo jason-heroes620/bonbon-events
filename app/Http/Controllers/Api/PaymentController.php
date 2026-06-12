@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\EnsurePaidInvoiceGenerated;
 use App\Models\ApplicationBooths;
 use App\Models\Applications;
 use App\Models\EventBooths;
@@ -10,7 +11,6 @@ use App\Models\Invoices;
 use App\Models\OrderItems;
 use App\Models\Orders;
 use App\Models\Payments;
-use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,10 +18,6 @@ use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
-    public function __construct(private InvoiceService $invoiceService)
-    {
-    }
-
     private function ipay88MerchantCode(): string
     {
         return (string) (config('services.ipay88.merchant_code')
@@ -136,15 +132,10 @@ class PaymentController extends Controller
                 return response('RECEIVEOK', 200);
             }
 
-            DB::transaction(function () use ($order, $application, $paymentAmount, $paymentDateValue, $issuingBank, $ccName, $ccNumber, $transactionId) {
+            DB::transaction(function () use ($order, $paymentAmount, $paymentDateValue, $issuingBank, $ccName, $ccNumber, $transactionId) {
                 if (!$order->is_paid) {
                     $order->update(['is_paid' => true]);
                 }
-
-                $invoice = $this->invoiceService->upsertInvoiceForOrder($order, $application);
-                $invoice->update([
-                    'invoice_status' => 'paid',
-                ]);
 
                 Payments::create([
                     'order_id' => $order->order_id,
@@ -158,6 +149,11 @@ class PaymentController extends Controller
                     'payment_status' => 1,
                 ]);
             });
+
+            EnsurePaidInvoiceGenerated::dispatch(
+                orderId: $order->order_id,
+                applicationId: $application->application_id,
+            )->afterResponse();
 
             return response('RECEIVEOK', 200);
         } catch (\Throwable $e) {
@@ -211,5 +207,4 @@ class PaymentController extends Controller
             ],
         ]);
     }
-
 }

@@ -1,7 +1,7 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, router } from "@inertiajs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Application } from "@/types";
+import type { Application, Event } from "@/types";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -23,10 +23,16 @@ type Paginated<T> = {
 
 type ApplicationsPageProps = {
     applications: Paginated<Application>;
+    events: Pick<Event, "event_id" | "event_name">[];
     filters: {
         search?: string;
+        event_id?: string | null;
+        status?: string | null;
     };
 };
+
+const selectClassName =
+    "h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-sm";
 
 function Pagination({ links }: { links: PaginationLink[] }) {
     if (!links?.length) return null;
@@ -69,9 +75,12 @@ function Pagination({ links }: { links: PaginationLink[] }) {
 
 export default function ApplicationsIndex({
     applications,
+    events,
     filters,
 }: ApplicationsPageProps) {
     const [search, setSearch] = useState(filters.search ?? "");
+    const [eventId, setEventId] = useState(filters.event_id ?? "");
+    const [status, setStatus] = useState(filters.status ?? "");
     const didMountRef = useRef(false);
 
     useEffect(() => {
@@ -83,13 +92,17 @@ export default function ApplicationsIndex({
         const timeout = window.setTimeout(() => {
             router.get(
                 "/applications",
-                { search: search.trim() === "" ? undefined : search },
+                {
+                    search: search.trim() === "" ? undefined : search,
+                    event_id: eventId.trim() === "" ? undefined : eventId,
+                    status: status.trim() === "" ? undefined : status,
+                },
                 { preserveScroll: true, preserveState: true, replace: true },
             );
         }, 300);
 
         return () => window.clearTimeout(timeout);
-    }, [search]);
+    }, [search, eventId, status]);
 
     const stats = useMemo(() => {
         if (applications.total === 0) return "No applications";
@@ -136,6 +149,33 @@ export default function ApplicationsIndex({
                             </Button>
                         ) : null}
                     </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <select
+                            className={selectClassName}
+                            value={eventId}
+                            onChange={(e) => setEventId(e.target.value)}
+                        >
+                            <option value="">All events</option>
+                            {events.map((e) => (
+                                <option key={e.event_id} value={e.event_id}>
+                                    {e.event_name}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            className={selectClassName}
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                        >
+                            <option value="">All statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div className="rounded-lg border bg-white">
@@ -144,13 +184,13 @@ export default function ApplicationsIndex({
                             <thead className="border-b bg-muted/40">
                                 <tr>
                                     <th className="px-4 py-3 text-left font-medium">
-                                        Code
+                                        Application Code
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
-                                        Organization / Brand Name
+                                        Vendor
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
-                                        Event
+                                        Events
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
                                         Status
@@ -167,7 +207,7 @@ export default function ApplicationsIndex({
                                 {applications.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={5}
+                                            colSpan={6}
                                             className="px-4 py-8 text-center text-muted-foreground"
                                         >
                                             No applications found.
@@ -187,8 +227,15 @@ export default function ApplicationsIndex({
                                                     ?.vendor_name ?? ""}
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
-                                                {application.event
-                                                    ?.event_name ?? ""}
+                                                {(application.events ?? [])
+                                                    .map(
+                                                        (e) =>
+                                                            e.event
+                                                                ?.event_name ??
+                                                            "",
+                                                    )
+                                                    .filter(Boolean)
+                                                    .join(", ")}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span

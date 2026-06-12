@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Mail\ApplicationApprovedPaymentLink;
+use App\Mail\ApplicationPaymentReminderEmail;
 use App\Mail\ApplicationRejectedEmail;
 use App\Models\Applications;
 use App\Models\ApplicationBooths;
+use App\Models\ApplicationEvent;
+use App\Models\ActivityLogs;
 use App\Models\Booths;
 use App\Models\EventBooths;
 use App\Models\EventDeposits;
@@ -15,6 +18,7 @@ use App\Models\Orders;
 use App\Models\Categories;
 use App\Models\Events;
 use App\Models\Vendors;
+use App\Services\ActivityLogService;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,9 +31,7 @@ use Inertia\Response;
 
 class ApplicationsController extends Controller
 {
-    public function __construct(private InvoiceService $invoiceService)
-    {
-    }
+    public function __construct(private InvoiceService $invoiceService, private ActivityLogService $activityLogService) {}
 
     public function participate(Request $request, Events $event)
     {
@@ -72,10 +74,11 @@ class ApplicationsController extends Controller
             ], 403);
         }
 
-        $existing = Applications::query()
-            ->where('event_id', $event->event_id)
-            ->where('vendor_id', $vendor->vendor_id)
-            ->first();
+        $existing = ApplicationEvent::query()
+            ->leftJoin('applications', 'application_events.application_id', '=', 'applications.application_id')
+            ->where('application_events.event_id', $event->event_id)
+            ->where('applications.vendor_id', $vendor->vendor_id)
+            ->first(['application_events.application_event_id']);
 
         if ($existing) {
             return response()->json([
@@ -94,8 +97,13 @@ class ApplicationsController extends Controller
         $application = Applications::create([
             'user_id' => $user->user_id,
             'vendor_id' => $vendor->vendor_id,
-            'event_id' => $event->event_id,
             'application_code' => Str::upper(Str::random(8)),
+            'application_status' => 'pending',
+        ]);
+
+        ApplicationEvent::create([
+            'application_id' => $application->application_id,
+            'event_id' => $event->event_id,
             'participants' => $validated['participants'],
             'no_of_booths' => $validated['no_of_booths'],
             'requirements' => $validated['requirements'] ?? null,
@@ -110,32 +118,154 @@ class ApplicationsController extends Controller
         ], 201);
     }
 
+    public function participateMulti(Request $request)
+    {
+        $validated = $request->validate([
+            'events' => ['required', 'array', 'min:1'],
+            'events.*.event_id' => ['required', 'uuid', 'exists:events,event_id', 'distinct'],
+            'events.*.participants' => ['required', 'integer', 'min:1', 'max:127'],
+            'events.*.no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
+            'events.*.requirements' => ['nullable', 'string', 'max:1000'],
+            'events.*.plug' => ['nullable', 'boolean'],
+            'agree_terms' => ['accepted'],
+        ]);
+
+        $user = $request->user();
+
+        if (($user->role ?? null) !== 'vendor') {
+            return response()->json([
+                'message' => 'Only vendor users can participate in events.',
+            ], 403);
+        }
+
+        $vendor = Vendors::query()
+            ->where('user_id', $user->user_id)
+            ->first();
+
+        if (!$vendor) {
+            return response()->json([
+                'message' => 'Vendor profile not found.',
+            ], 422);
+        }
+
+        if (
+            empty($vendor->vendor_bank_name) ||
+            empty($vendor->vendor_bank_account_name) ||
+            empty($vendor->vendor_bank_account_no)
+        ) {
+            return response()->json([
+                'message' => 'Bank account not set. Please update your profile.',
+            ], 422);
+        }
+
+        $eventIds = collect($validated['events'])
+            ->pluck('event_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $availableEventIds = Events::query()
+            ->whereIn('event_id', $eventIds->all(), 'and', false)
+            ->where('is_active', true)
+            ->where('event_end_date', '>=', now()->toDateString())
+            ->pluck('event_id')
+            ->filter()
+            ->values();
+
+        if ($availableEventIds->count() !== $eventIds->count()) {
+            throw ValidationException::withMessages([
+                'events' => ['One or more selected events are not available.'],
+            ]);
+        }
+
+        $alreadyParticipatedEventIds = ApplicationEvent::query()
+            ->leftJoin('applications', 'application_events.application_id', '=', 'applications.application_id')
+            ->where('applications.vendor_id', $vendor->vendor_id)
+            ->whereIn('application_events.event_id', $eventIds->all(), 'and', false)
+            ->pluck('application_events.event_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($alreadyParticipatedEventIds->isNotEmpty()) {
+            return response()->json([
+                'message' => 'You have already participated in one or more selected events.',
+                'event_ids' => $alreadyParticipatedEventIds,
+            ], 409);
+        }
+
+        $application = null;
+
+        DB::transaction(function () use ($validated, $user, $vendor, &$application) {
+            $application = Applications::create([
+                'user_id' => $user->user_id,
+                'vendor_id' => $vendor->vendor_id,
+                'application_code' => Str::upper(Str::random(8)),
+                'application_status' => 'pending',
+            ]);
+
+            foreach ($validated['events'] as $eventData) {
+                ApplicationEvent::create([
+                    'application_id' => $application->application_id,
+                    'event_id' => $eventData['event_id'],
+                    'participants' => $eventData['participants'],
+                    'no_of_booths' => $eventData['no_of_booths'],
+                    'requirements' => $eventData['requirements'] ?? null,
+                    'plug' => (bool) ($eventData['plug'] ?? false),
+                    'application_status' => 'pending',
+                ]);
+            }
+        });
+
+        return response()->json([
+            'application_id' => $application?->application_id,
+            'application_code' => $application?->application_code,
+        ], 201);
+    }
+
     public function index(Request $request): Response
     {
         $search = $request->string('search')->toString();
+        $eventId = $request->string('event_id')->toString();
+        $status = $request->string('status')->toString();
 
         $applications = Applications::query()
-            ->with(['event', 'vendor', 'order'])
+            ->with(['events.event', 'vendor', 'order'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('application_code', 'like', "%{$search}%")
-                        ->orWhere('organization', 'like', "%{$search}%")
-                        ->orWhere('contact_person', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('application_status', 'like', "%{$search}%")
-                        ->orWhereHas('event', function ($query) use ($search) {
+                        ->orWhereHas('vendor', function ($query) use ($search) {
+                            $query->where('vendor_name', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('events.event', function ($query) use ($search) {
                             $query->where('event_name', 'like', "%{$search}%");
                         });
                 });
+            })
+            ->when($eventId !== '', function ($query) use ($eventId) {
+                $query->whereHas('events', function ($query) use ($eventId) {
+                    $query->where('event_id', $eventId);
+                });
+            })
+            ->when($status !== '', function ($query) use ($status) {
+                $query->where('application_status', $status);
             })
             ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();
 
+        $events = Events::query()
+            ->orderByDesc('event_start_date')
+            ->get(['event_id', 'event_name']);
+
         return Inertia::render('applications/applications', [
             'applications' => $applications,
+            'events' => $events,
             'filters' => [
                 'search' => $search,
+                'event_id' => $eventId !== '' ? $eventId : null,
+                'status' => $status !== '' ? $status : null,
             ],
         ]);
     }
@@ -178,57 +308,57 @@ class ApplicationsController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'event_id' => ['required', 'uuid', 'exists:events,event_id'],
             'vendor_id' => ['required', 'uuid', 'exists:vendors,vendor_id'],
-            'participants' => ['required', 'integer', 'min:1', 'max:127'],
-            'no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
-            'category' => ['required', 'string', 'max:255'],
-            'requirements' => ['nullable', 'string'],
-            'plug' => ['nullable', 'boolean'],
+            'events' => ['required', 'array', 'min:1'],
+            'events.*.event_id' => ['required', 'uuid', 'exists:events,event_id', 'distinct'],
+            'events.*.participants' => ['required', 'integer', 'min:1', 'max:127'],
+            'events.*.no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
+            'events.*.requirements' => ['nullable', 'string', 'max:1000'],
+            'events.*.plug' => ['nullable', 'boolean'],
             'application_status' => ['nullable', 'in:pending,approved,rejected,cancelled'],
         ]);
 
-        Applications::create([
-            'event_id' => $validated['event_id'],
+        $application = Applications::create([
             'vendor_id' => $validated['vendor_id'],
             'application_code' => Str::upper(Str::random(8)),
-            'participants' => $validated['participants'],
-            'no_of_booths' => $validated['no_of_booths'],
-            'requirements' => $validated['requirements'] ?? null,
-            'plug' => (bool) ($validated['plug'] ?? false),
-            'application_status' => $validated['application_status'] ?? 'pending',
+            'application_status' => 'pending',
         ]);
+
+        $status = (string) ($validated['application_status'] ?? 'pending');
+
+        foreach ($validated['events'] as $eventData) {
+            ApplicationEvent::create([
+                'application_id' => $application->application_id,
+                'event_id' => $eventData['event_id'],
+                'participants' => $eventData['participants'],
+                'no_of_booths' => $eventData['no_of_booths'],
+                'requirements' => $eventData['requirements'] ?? null,
+                'plug' => (bool) ($eventData['plug'] ?? false),
+                'application_status' => $status,
+            ]);
+        }
 
         return redirect('/applications');
     }
 
     public function edit(Applications $application): Response
     {
-        $event = Events::query()
-            ->where('event_id', $application->event_id)
-            ->first(['event_id', 'event_name', 'require_deposit']);
-
-        $depositAmount = '0';
-        if ($event && $event->require_deposit) {
-            $depositAmount = (string) (EventDeposits::query()
-                ->leftJoin('deposits', 'event_deposits.deposit_id', '=', 'deposits.deposit_id')
-                ->where('event_deposits.event_id', $application->event_id)
-                ->where('event_deposits.event_deposit_status', 'active')
-                ->orderByDesc('event_deposits.created_at')
-                ->value('deposits.deposit_amount') ?? '0');
-        }
-
         $vendor = Vendors::query()
             ->where('vendor_id', $application->vendor_id)
             ->first(
                 [
+                    'vendor_id',
                     'vendor_name',
                     'vendor_contact_person',
                     'vendor_contact_no',
                     'vendor_email',
+                    'business_registration_no',
                     'business_description',
                     'category',
-                    'social_medias'
+                    'social_medias',
+                    'vendor_bank_name',
+                    'vendor_bank_account_name',
+                    'vendor_bank_account_no',
                 ]
             );
 
@@ -237,35 +367,91 @@ class ApplicationsController extends Controller
             ->orderBy('category_name', 'asc')
             ->get(['category_id', 'category_name']);
 
-        $selectedBoothIds = ApplicationBooths::query()
-            ->where('application_id', $application->application_id)
+        $applicationEvents = ApplicationEvent::query()
+            ->leftJoin('events', 'application_events.event_id', '=', 'events.event_id')
+            ->where('application_events.application_id', $application->application_id)
+            ->orderBy('events.event_start_date', 'asc')
+            ->orderBy('events.event_name', 'asc')
+            ->get([
+                'application_events.application_event_id',
+                'application_events.application_id',
+                'application_events.event_id',
+                'application_events.participants',
+                'application_events.no_of_booths',
+                'application_events.requirements',
+                'application_events.plug',
+                'application_events.application_status',
+                'events.event_name',
+                'events.event_start_date',
+                'events.require_deposit',
+            ]);
+
+        $depositAmountsByEventId = EventDeposits::query()
+            ->leftJoin('deposits', 'event_deposits.deposit_id', '=', 'deposits.deposit_id')
+            ->whereIn('event_deposits.event_id', $applicationEvents->pluck('event_id')->unique()->values()->all())
+            ->where('event_deposits.event_deposit_status', 'active')
+            ->orderByDesc('event_deposits.created_at')
+            ->get([
+                'event_deposits.event_id',
+                'deposits.deposit_amount',
+            ])
+            ->groupBy('event_id')
+            ->map(fn($rows) => (string) ($rows->first()->deposit_amount ?? '0'));
+
+        $selectedBoothsByApplicationEventId = ApplicationBooths::query()
+            ->whereIn('application_event_id', $applicationEvents->pluck('application_event_id')->all(), 'and', false)
             ->where('is_active', true)
-            ->pluck('booth_id')
-            ->filter()
-            ->values();
+            ->get(['application_event_id', 'booth_id'])
+            ->groupBy('application_event_id')
+            ->map(fn($rows) => $rows->pluck('booth_id')->filter()->values());
 
-        $selectedEventBoothIds = EventBooths::query()
-            ->where('event_id', $application->event_id)
-            ->whereIn('booth_id', $selectedBoothIds)
-            ->pluck('event_booth_id')
-            ->values();
-
-        $eventBooths = EventBooths::query()
+        $eventBoothsByEventId = EventBooths::query()
             ->leftJoin('booths', 'event_booths.booth_id', '=', 'booths.booth_id')
             ->leftJoin('booth_types', 'booths.booth_type_id', '=', 'booth_types.booth_type_id')
-            ->where('event_booths.event_id', $application->event_id)
+            ->whereIn('event_booths.event_id', $applicationEvents->pluck('event_id')->unique()->values()->all(), 'and', false)
             ->where('event_booths.is_active', true)
             ->orderBy('booth_types.booth_type_name')
             ->orderBy('booths.booth_name')
             ->get([
                 'event_booths.event_booth_id',
+                'event_booths.event_id',
                 'event_booths.booth_id',
                 'event_booths.booth_price',
                 'event_booths.occupied',
+                'event_booths.occupied_by_application_event_id',
                 'booths.booth_name',
                 'booths.booth_type_id',
                 'booth_types.booth_type_name',
-            ]);
+            ])
+            ->groupBy('event_id');
+
+        $applicationEventsView = $applicationEvents->map(function ($row) use ($depositAmountsByEventId, $selectedBoothsByApplicationEventId, $eventBoothsByEventId) {
+            $selectedBoothIds = $selectedBoothsByApplicationEventId->get($row->application_event_id) ?? collect();
+            $selectedEventBoothIds = EventBooths::query()
+                ->where('event_id', $row->event_id)
+                ->whereIn('booth_id', $selectedBoothIds)
+                ->pluck('event_booth_id')
+                ->values();
+
+            $eventBooths = $eventBoothsByEventId->get($row->event_id) ?? collect();
+            $requiresDeposit = (bool) ($row->require_deposit ?? false);
+
+            return [
+                'application_event_id' => $row->application_event_id,
+                'event_id' => $row->event_id,
+                'event_name' => $row->event_name,
+                'event_start_date' => $row->event_start_date,
+                'require_deposit' => $requiresDeposit,
+                'deposit_amount' => $requiresDeposit ? ($depositAmountsByEventId->get($row->event_id) ?? '0') : '0',
+                'participants' => $row->participants,
+                'no_of_booths' => $row->no_of_booths,
+                'requirements' => $row->requirements ?? '',
+                'plug' => (bool) ($row->plug ?? false),
+                'application_status' => $row->application_status,
+                'event_booths' => $eventBooths->values(),
+                'selected_event_booth_ids' => $selectedEventBoothIds,
+            ];
+        });
 
         $order = Orders::query()
             ->where('application_id', $application->application_id)
@@ -281,24 +467,33 @@ class ApplicationsController extends Controller
                 ->first(['invoice_id', 'invoice_no', 'invoice_status', 'invoice_amount']);
         }
 
-        $application->load(['event']);
-        $application->load(['vendor']);
+        $activityLogs = ActivityLogs::query()
+            ->leftJoin('users', 'activity_logs.user_id', '=', 'users.user_id')
+            ->where('application_code', $application->application_code)
+            ->orderByDesc('activity_logs.created_at')
+            ->get([
+                'activity_logs.id',
+                'activity_logs.application_code',
+                'activity_logs.activity',
+                'activity_logs.description',
+                'users.name',
+                'activity_logs.created_at',
+            ]);
 
         return Inertia::render('applications/[id]', [
             'application' => $application,
-            'event' => $event,
             'vendor' => $vendor,
             'categories' => $categories,
-            'eventBooths' => $eventBooths,
-            'selectedEventBoothIds' => $selectedEventBoothIds,
+            'applicationEvents' => $applicationEventsView,
             'order' => $order,
             'invoice' => $invoice,
-            'depositAmount' => $depositAmount,
+            'activityLogs' => $activityLogs,
         ]);
     }
 
     public function updateStatus(Request $request, Applications $application)
     {
+        Log::info('status changed');
         $validated = $request->validate([
             'application_status' => ['required', 'in:pending,approved,rejected,cancelled'],
         ]);
@@ -306,9 +501,13 @@ class ApplicationsController extends Controller
         $vendor = Vendors::query()
             ->where('vendor_id', $application->vendor_id)
             ->first(['vendor_email', 'vendor_contact_person']);
-        $event = Events::query()
-            ->where('event_id', $application->event_id)
-            ->first(['event_name']);
+
+        $this->activityLogService->logActivity(
+            applicationCode: $application->application_code,
+            activityType: 'Status Changed',
+            activityDescription: 'Status Changed to ' . $validated['application_status'],
+            userId: $request->user()->user_id ?? '',
+        );
 
         if ($validated['application_status'] === 'rejected') {
             if (!$vendor || !$vendor->vendor_email) {
@@ -316,26 +515,24 @@ class ApplicationsController extends Controller
                     'vendor' => ['Vendor email not found.'],
                 ]);
             }
-            Log::info('rejected mail');
-            if (!$event) {
-                throw ValidationException::withMessages([
-                    'event' => ['Event not found.'],
-                ]);
-            }
 
             try {
-                Log::info('try send');
-                Log::info($vendor);
-                Log::info($event);
-                Log::info($application);
-                Mail::to($vendor->vendor_email)->queue(
-                    (new ApplicationRejectedEmail(
-                        $application->application_code,
-                        $vendor->vendor_contact_person,
-                        $event->event_name,
-                    ))
-                        ->delay(now()),
-                );
+                $firstEventName = (string) (ApplicationEvent::query()
+                    ->leftJoin('events', 'application_events.event_id', '=', 'events.event_id')
+                    ->where('application_events.application_id', $application->application_id)
+                    ->orderBy('events.event_start_date', 'asc')
+                    ->value('events.event_name') ?? '');
+
+                if ($validated['application_status'] === 'rejected') {
+                    Mail::to($vendor->vendor_email)->queue(
+                        (new ApplicationRejectedEmail(
+                            $application->application_code,
+                            $vendor->vendor_contact_person,
+                            $firstEventName !== '' ? $firstEventName : 'Event',
+                        ))
+                            ->delay(now()),
+                    );
+                }
             } catch (\Exception $e) {
                 throw new \Exception($e->getMessage());
             }
@@ -345,14 +542,195 @@ class ApplicationsController extends Controller
             'application_status' => $validated['application_status'],
         ]);
 
+        ApplicationEvent::query()
+            ->where('application_id', $application->application_id)
+            ->update([
+                'application_status' => $validated['application_status'],
+            ]);
+
+        return redirect()->back();
+    }
+
+    public function sendPaymentLink(Request $request, Applications $application)
+    {
+        if (($application->application_status ?? null) !== 'approved') {
+            throw ValidationException::withMessages([
+                'application' => ['Payment link can only be sent for approved applications.'],
+            ]);
+        }
+
+        $order = Orders::query()
+            ->where('application_id', $application->application_id)
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->first();
+
+        $this->rebuildOrderForApplication($application, $order ? (float) $order->discount_price : 0.0);
+
+        $this->queueApprovedPaymentLinkEmail($application);
+
+        $this->activityLogService->logActivity(
+            applicationCode: $application->application_code,
+            activityType: 'Payment Link Sent',
+            activityDescription: 'Payment link sent to vendor',
+            userId: $request->user()->user_id ?? '',
+        );
+
+        return redirect()->back();
+    }
+
+    private function queueApprovedPaymentLinkEmail(Applications $application): void
+    {
+        $vendor = Vendors::query()
+            ->where('vendor_id', $application->vendor_id)
+            ->first(['vendor_id', 'vendor_email', 'vendor_name']);
+
+        if (!$vendor || !$vendor->vendor_email) {
+            throw ValidationException::withMessages([
+                'vendor' => ['Vendor email not found.'],
+            ]);
+        }
+
+        $eventName = ApplicationEvent::query()
+            ->leftJoin('events', 'application_events.event_id', '=', 'events.event_id')
+            ->where('application_events.application_id', $application->application_id)
+            ->orderBy('events.event_start_date', 'asc')
+            ->pluck('events.event_name')
+            ->filter()
+            ->unique()
+            ->values()
+            ->join(', ');
+
+        if ($eventName === '') {
+            $eventName = 'Event';
+        }
+
+        $paymentUrl = rtrim((string) config('app.url'), '/') . '/payments/' . $application->application_code;
+
+        Mail::to($vendor->vendor_email)->queue(
+            (new ApplicationApprovedPaymentLink(
+                $application->application_code,
+                $paymentUrl,
+                $vendor->vendor_name ?: 'Vendor',
+                $eventName,
+            ))
+                ->delay(now()),
+        );
+    }
+
+    public function updateEventStatus(Request $request, Applications $application, ApplicationEvent $applicationEvent)
+    {
+        if ($applicationEvent->application_id !== $application->application_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'application_status' => ['required', 'in:pending,approved,rejected,cancelled'],
+        ]);
+
+        $applicationEvent->update([
+            'application_status' => $validated['application_status'],
+        ]);
+
+        return redirect()->back();
+    }
+
+    public function updateBoothQtyForEvent(Request $request, Applications $application, ApplicationEvent $applicationEvent)
+    {
+        if ($applicationEvent->application_id !== $application->application_id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
+        ]);
+
+        $order = Orders::query()
+            ->where('application_id', $application->application_id)
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->first(['order_id', 'is_paid']);
+
+        if ($order && $order->is_paid) {
+            throw ValidationException::withMessages([
+                'order' => ['Order is already paid and cannot be changed.'],
+            ]);
+        }
+
+        $selectedCount = (int) ApplicationBooths::query()
+            ->where('application_event_id', $applicationEvent->application_event_id)
+            ->where('is_active', true)
+            ->count();
+
+        $newQty = (int) $validated['no_of_booths'];
+        if ($selectedCount > $newQty) {
+            throw ValidationException::withMessages([
+                'no_of_booths' => ["Cannot reduce booth quantity below current selected booths ({$selectedCount})."],
+            ]);
+        }
+
+        $oldQty = (int) ($applicationEvent->no_of_booths ?? 0);
+        $applicationEvent->update([
+            'no_of_booths' => $newQty,
+        ]);
+
+        $this->activityLogService->logActivity(
+            applicationCode: $application->application_code,
+            activityType: 'Booth Qty Updated',
+            activityDescription: "Booth quantity updated: {$oldQty} -> {$newQty}",
+            userId: $request->user()->user_id ?? '',
+        );
+
+        return redirect()->back();
+    }
+
+    public function updateDiscount(Request $request, Applications $application)
+    {
+        if (($application->application_status ?? null) !== 'approved') {
+            throw ValidationException::withMessages([
+                'discount_price' => ['Discount can only be updated for approved applications.'],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'discount_price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        DB::transaction(function () use ($application, $validated, $request) {
+            $order = Orders::query()
+                ->where('application_id', $application->application_id)
+                ->where('is_active', true)
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($order && $order->is_paid) {
+                throw ValidationException::withMessages([
+                    'discount_price' => ['Cannot update discount for a paid order.'],
+                ]);
+            }
+
+            $this->rebuildOrderForApplication($application, (float) $validated['discount_price']);
+            $this->activityLogService->logActivity(
+                applicationCode: $application->application_code,
+                activityType: 'Discount Updated',
+                activityDescription: 'Discount updated: RM' . $validated['discount_price'],
+                userId: $request->user()->user_id ?? '',
+            );
+        });
+
         return redirect()->back();
     }
 
     public function generateInvoice(Applications $application)
     {
-        if (($application->application_status ?? null) !== 'approved') {
+        $hasApprovedEvent = ApplicationEvent::query()
+            ->where('application_id', $application->application_id)
+            ->where('application_status', 'approved')
+            ->exists();
+
+        if (!$hasApprovedEvent) {
             throw ValidationException::withMessages([
-                'application_status' => ['Only approved applications can generate invoice.'],
+                'application_status' => ['Only applications with approved events can generate invoice.'],
             ]);
         }
 
@@ -373,7 +751,7 @@ class ApplicationsController extends Controller
         return redirect()->back();
     }
 
-    public function sendPaymentReminder(Applications $application)
+    public function sendPaymentReminder(Request $request, Applications $application)
     {
         $order = Orders::query()
             ->where('application_id', $application->application_id)
@@ -403,15 +781,24 @@ class ApplicationsController extends Controller
             ]);
         }
 
-        $orderDate = $order->created_at ? $order->created_at->toDateString() : '';
-        $amount = (string) $order->total_price;
+        $orderDate = $order->created_at ? $order->created_at->toDateString() : '-';
+        $amount = number_format((float) $order->total_price, 2, '.', ',');
 
-        Mail::raw(
-            "Payment reminder\n\nOrder No: {$order->order_no}\nOrder Date: {$orderDate}\nAmount: {$amount}\n\nPlease make payment at your earliest convenience.",
-            function ($message) use ($vendor, $order) {
-                $message->to($vendor->vendor_email)
-                    ->subject("Payment Reminder - {$order->order_no}");
-            },
+        Mail::to($vendor->vendor_email)->send(
+            new ApplicationPaymentReminderEmail(
+                applicationCode: $application->application_code,
+                vendorName: $vendor->vendor_name ?: 'Vendor',
+                orderNo: (string) $order->order_no,
+                orderDate: $orderDate,
+                amount: $amount,
+            ),
+        );
+
+        $this->activityLogService->logActivity(
+            applicationCode: $application->application_code,
+            activityType: 'Payment Reminder',
+            activityDescription: 'Payment reminder sent to vendor',
+            userId: $request->user()->user_id,
         );
 
         return redirect()->back();
@@ -419,20 +806,38 @@ class ApplicationsController extends Controller
 
     public function confirmBooths(Request $request, Applications $application)
     {
-        if (($application->application_status ?? null) !== 'approved') {
+        $applicationEvent = ApplicationEvent::query()
+            ->where('application_id', $application->application_id)
+            ->orderBy('created_at')
+            ->first();
+
+        if (!$applicationEvent) {
+            abort(404);
+        }
+
+        return $this->confirmBoothsForEvent($request, $application, $applicationEvent);
+    }
+
+    public function confirmBoothsForEvent(Request $request, Applications $application, ApplicationEvent $applicationEvent)
+    {
+        if ($applicationEvent->application_id !== $application->application_id) {
+            abort(404);
+        }
+
+        if (($applicationEvent->application_status ?? null) !== 'approved') {
             throw ValidationException::withMessages([
-                'event_booth_ids' => ['Only approved applications can confirm booths.'],
+                'event_booth_ids' => ['Only approved application events can confirm booths.'],
             ]);
         }
 
         $validated = $request->validate([
-            'event_booth_ids' => ['required', 'array', 'size:' . (int) $application->no_of_booths],
+            'event_booth_ids' => ['required', 'array', 'size:' . (int) $applicationEvent->no_of_booths],
             'event_booth_ids.*' => ['required', 'uuid'],
             'discount_price' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $eventBoothIds = array_values(array_unique($validated['event_booth_ids']));
-        if (count($eventBoothIds) !== (int) $application->no_of_booths) {
+        if (count($eventBoothIds) !== (int) $applicationEvent->no_of_booths) {
             throw ValidationException::withMessages([
                 'event_booth_ids' => ['Duplicate booths detected. Please select again.'],
             ]);
@@ -440,7 +845,7 @@ class ApplicationsController extends Controller
 
         $discountPrice = (float) ($validated['discount_price'] ?? 0);
 
-        DB::transaction(function () use ($application, $eventBoothIds, $discountPrice) {
+        DB::transaction(function () use ($application, $applicationEvent, $eventBoothIds, $discountPrice) {
             $order = Orders::query()
                 ->where('application_id', $application->application_id)
                 ->where('is_active', true)
@@ -454,17 +859,17 @@ class ApplicationsController extends Controller
             }
 
             $existingBoothIds = ApplicationBooths::query()
-                ->where('application_id', $application->application_id)
+                ->where('application_event_id', $applicationEvent->application_event_id)
                 ->where('is_active', true)
                 ->pluck('booth_id')
                 ->filter()
                 ->values();
 
             $selectedEventBooths = EventBooths::query()
-                ->where('event_id', $application->event_id)
+                ->where('event_id', $applicationEvent->event_id)
                 ->whereIn('event_booth_id', $eventBoothIds)
                 ->where('is_active', true)
-                ->get(['event_booth_id', 'booth_id', 'booth_price', 'occupied']);
+                ->get(['event_booth_id', 'booth_id', 'booth_price', 'occupied', 'occupied_by_application_event_id']);
 
             if ($selectedEventBooths->count() !== count($eventBoothIds)) {
                 throw ValidationException::withMessages([
@@ -472,9 +877,8 @@ class ApplicationsController extends Controller
                 ]);
             }
 
-            $existingBoothIdSet = array_fill_keys($existingBoothIds->all(), true);
             foreach ($selectedEventBooths as $eventBooth) {
-                if ($eventBooth->occupied && empty($existingBoothIdSet[$eventBooth->booth_id])) {
+                if ($eventBooth->occupied && (string) $eventBooth->occupied_by_application_event_id !== (string) $applicationEvent->application_event_id) {
                     throw ValidationException::withMessages([
                         'event_booth_ids' => ['One or more selected booths are already occupied.'],
                     ]);
@@ -483,89 +887,184 @@ class ApplicationsController extends Controller
 
             if ($existingBoothIds->isNotEmpty()) {
                 EventBooths::query()
-                    ->where('event_id', $application->event_id)
+                    ->where('event_id', $applicationEvent->event_id)
                     ->whereIn('booth_id', $existingBoothIds)
-                    ->update(['occupied' => false]);
+                    ->update([
+                        'occupied' => false,
+                        'occupied_by_application_event_id' => null,
+                    ]);
             }
 
             ApplicationBooths::query()
-                ->where('application_id', $application->application_id)
+                ->where('application_event_id', $applicationEvent->application_event_id)
                 ->delete();
 
             foreach ($selectedEventBooths as $eventBooth) {
                 ApplicationBooths::create([
                     'application_id' => $application->application_id,
+                    'application_event_id' => $applicationEvent->application_event_id,
                     'booth_id' => $eventBooth->booth_id,
                     'is_active' => true,
                 ]);
             }
 
             EventBooths::query()
-                ->where('event_id', $application->event_id)
+                ->where('event_id', $applicationEvent->event_id)
                 ->whereIn('event_booth_id', $eventBoothIds)
-                ->update(['occupied' => true]);
+                ->update([
+                    'occupied' => true,
+                    'occupied_by_application_event_id' => $applicationEvent->application_event_id,
+                ]);
 
-            $event = Events::query()
-                ->where('event_id', $application->event_id)
-                ->first(['event_id', 'require_deposit']);
+            $this->rebuildOrderForApplication($application, $discountPrice);
+        });
+
+        return redirect()->back();
+    }
+
+    public function releaseBooths(Applications $application)
+    {
+        $applicationEvent = ApplicationEvent::query()
+            ->where('application_id', $application->application_id)
+            ->orderBy('created_at')
+            ->first();
+
+        if (!$applicationEvent) {
+            abort(404);
+        }
+
+        return $this->releaseBoothsForEvent($application, $applicationEvent);
+    }
+
+    public function releaseBoothsForEvent(Applications $application, ApplicationEvent $applicationEvent)
+    {
+        if ($applicationEvent->application_id !== $application->application_id) {
+            abort(404);
+        }
+
+        DB::transaction(function () use ($application, $applicationEvent) {
+            $existingBoothIds = ApplicationBooths::query()
+                ->where('application_event_id', $applicationEvent->application_event_id)
+                ->where('is_active', true)
+                ->pluck('booth_id')
+                ->filter()
+                ->values();
+
+            if ($existingBoothIds->isNotEmpty()) {
+                EventBooths::query()
+                    ->where('event_id', $applicationEvent->event_id)
+                    ->whereIn('booth_id', $existingBoothIds)
+                    ->where('occupied_by_application_event_id', $applicationEvent->application_event_id)
+                    ->update([
+                        'occupied' => false,
+                        'occupied_by_application_event_id' => null,
+                    ]);
+            }
+
+            ApplicationBooths::query()
+                ->where('application_event_id', $applicationEvent->application_event_id)
+                ->delete();
+
+            $order = Orders::query()
+                ->where('application_id', $application->application_id)
+                ->where('is_active', true)
+                ->orderByDesc('created_at')
+                ->first();
+
+            if ($order && $order->is_paid) {
+                return;
+            }
+
+            $this->rebuildOrderForApplication($application, $order ? (float) $order->discount_price : 0.0);
+        });
+
+        return redirect()->back();
+    }
+
+    private function rebuildOrderForApplication(Applications $application, float $discountPrice): void
+    {
+        $order = Orders::query()
+            ->where('application_id', $application->application_id)
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($order && $order->is_paid) {
+            throw ValidationException::withMessages([
+                'order' => ['This application has a paid order and cannot be changed.'],
+            ]);
+        }
+
+        $approvedEvents = ApplicationEvent::query()
+            ->where('application_id', $application->application_id)
+            ->where('application_status', 'approved')
+            ->get([
+                'application_event_id',
+                'event_id',
+                'no_of_booths',
+            ]);
+
+        $subtotal = 0.0;
+        $itemsToCreate = [];
+
+        $eventIds = $approvedEvents->pluck('event_id')->unique()->values()->all();
+        $eventRowsById = Events::query()
+            ->whereIn('event_id', $eventIds, 'and', false)
+            ->get(['event_id', 'event_name', 'require_deposit'])
+            ->keyBy('event_id');
+
+        foreach ($approvedEvents as $applicationEvent) {
+            $eventId = (string) $applicationEvent->event_id;
+            $eventRow = $eventRowsById->get($eventId);
+            $eventName = (string) ($eventRow?->event_name ?? 'Event');
+            $requiresDeposit = (bool) ($eventRow?->require_deposit ?? false);
 
             $depositTotal = 0.0;
-            if ($event && $event->require_deposit) {
+            if ($requiresDeposit) {
                 $depositValue = (string) (EventDeposits::query()
                     ->leftJoin('deposits', 'event_deposits.deposit_id', '=', 'deposits.deposit_id')
-                    ->where('event_deposits.event_id', $application->event_id)
+                    ->where('event_deposits.event_id', $eventId)
                     ->where('event_deposits.event_deposit_status', 'active')
                     ->orderByDesc('event_deposits.created_at')
                     ->value('deposits.deposit_amount') ?? '0');
                 $depositTotal = (float) $depositValue;
             }
 
-            $boothTotal = (float) $selectedEventBooths->sum('booth_price');
-            $total = $depositTotal + $boothTotal - $discountPrice;
-            if ($total < 0) {
-                throw ValidationException::withMessages([
-                    'discount_price' => ['Discount cannot exceed deposit + booth total.'],
-                ]);
-            }
-
-            if (!$order) {
-                do {
-                    $orderNo = Str::upper(Str::random(10));
-                } while (Orders::query()->where('order_no', $orderNo)->exists());
-
-                $order = Orders::create([
-                    'order_no' => $orderNo,
-                    'application_id' => $application->application_id,
-                    'application_code' => $application->application_code,
-                    'total_price' => (string) $total,
-                    'discount_price' => (string) $discountPrice,
-                    'is_paid' => false,
-                    'is_active' => true,
-                ]);
-            } else {
-                $order->update([
-                    'total_price' => (string) $total,
-                    'discount_price' => (string) $discountPrice,
-                ]);
-
-                OrderItems::query()
-                    ->where('order_id', $order->order_id)
-                    ->delete();
-            }
-
             if ($depositTotal > 0) {
-                OrderItems::create([
-                    'order_id' => $order->order_id,
+                $subtotal += $depositTotal;
+                $itemsToCreate[] = [
+                    'application_event_id' => $applicationEvent->application_event_id,
+                    'event_id' => $eventId,
+                    'booth_id' => null,
+                    'event_booth_id' => null,
+                    'item_type' => 'deposit',
                     'quantity' => 1,
                     'price' => (string) $depositTotal,
-                    'item_description' => 'Deposit',
+                    'item_description' => "Deposit - {$eventName}",
                     'is_active' => true,
-                ]);
+                ];
             }
+
+            $selectedBoothIds = ApplicationBooths::query()
+                ->where('application_event_id', $applicationEvent->application_event_id)
+                ->where('is_active', true)
+                ->pluck('booth_id')
+                ->filter()
+                ->values();
+
+            if ($selectedBoothIds->isEmpty()) {
+                continue;
+            }
+
+            $selectedEventBooths = EventBooths::query()
+                ->where('event_id', $eventId)
+                ->whereIn('booth_id', $selectedBoothIds)
+                ->where('is_active', true)
+                ->get(['event_booth_id', 'booth_id', 'booth_price']);
 
             $boothDetails = Booths::query()
                 ->leftJoin('booth_types', 'booths.booth_type_id', '=', 'booth_types.booth_type_id')
-                ->whereIn('booths.booth_id', $selectedEventBooths->pluck('booth_id'))
+                ->whereIn('booths.booth_id', $selectedEventBooths->pluck('booth_id')->all())
                 ->get([
                     'booths.booth_id',
                     'booths.booth_name',
@@ -578,70 +1077,34 @@ class ApplicationsController extends Controller
                 $boothName = $detail?->booth_name ?? 'Booth';
                 $boothTypeName = $detail?->booth_type_name ?? 'Booth Type';
 
-                OrderItems::create([
-                    'order_id' => $order->order_id,
+                $price = (float) $eventBooth->booth_price;
+                $subtotal += $price;
+
+                $itemsToCreate[] = [
+                    'application_event_id' => $applicationEvent->application_event_id,
+                    'event_id' => $eventId,
+                    'booth_id' => $eventBooth->booth_id,
+                    'event_booth_id' => $eventBooth->event_booth_id,
+                    'item_type' => 'booth',
                     'quantity' => 1,
-                    'price' => $eventBooth->booth_price,
-                    'item_description' => "{$boothTypeName} - {$boothName}",
+                    'price' => (string) $eventBooth->booth_price,
+                    'item_description' => "{$eventName} - {$boothTypeName} - {$boothName}",
                     'is_active' => true,
-                ]);
+                ];
             }
-        });
-
-        $user = $request->user();
-        $vendor = Vendors::query()
-            ->where('vendor_id', $application->vendor_id)
-            ->first(['vendor_id', 'vendor_email', 'vendor_name']);
-
-        if ($vendor && $vendor->vendor_email) {
-            $event = Events::query()
-                ->where('event_id', $application->event_id)
-                ->first(['event_id', 'event_name']);
-            if (!$event) {
-                return redirect()->back();
-            }
-            $paymentUrl = rtrim((string) config('app.url'), '/') . '/payments/' . $application->application_code;
-            Mail::to($vendor->vendor_email)->queue(
-                (new ApplicationApprovedPaymentLink(
-                    $application->application_code,
-                    $paymentUrl,
-                    $vendor->vendor_name ?: ($user?->name ?? 'Vendor'),
-                    $event,
-                ))
-                    ->delay(now()->addMinute()),
-            );
         }
 
-        return redirect()->back();
-    }
+        if ($discountPrice < 0) {
+            $discountPrice = 0;
+        }
 
-    public function releaseBooths(Applications $application)
-    {
-        DB::transaction(function () use ($application) {
-            $existingBoothIds = ApplicationBooths::query()
-                ->where('application_id', $application->application_id)
-                ->where('is_active', true)
-                ->pluck('booth_id')
-                ->filter()
-                ->values();
+        if ($discountPrice > $subtotal) {
+            throw ValidationException::withMessages([
+                'discount_price' => ['Discount cannot exceed total amount.'],
+            ]);
+        }
 
-            if ($existingBoothIds->isNotEmpty()) {
-                EventBooths::query()
-                    ->where('event_id', $application->event_id)
-                    ->whereIn('booth_id', $existingBoothIds)
-                    ->update(['occupied' => false]);
-            }
-
-            ApplicationBooths::query()
-                ->where('application_id', $application->application_id)
-                ->delete();
-
-            $order = Orders::query()
-                ->where('application_id', $application->application_id)
-                ->where('is_active', true)
-                ->orderByDesc('created_at')
-                ->first();
-
+        if ($subtotal <= 0) {
             if ($order && !$order->is_paid) {
                 $order->update(['is_active' => false]);
                 OrderItems::query()
@@ -652,40 +1115,81 @@ class ApplicationsController extends Controller
                     ->where('order_id', $order->order_id)
                     ->update(['invoice_status' => 'canceled']);
             }
-        });
+            return;
+        }
 
-        return redirect()->back();
+        $total = $subtotal - $discountPrice;
+
+        if (!$order) {
+            do {
+                $orderNo = Str::upper(Str::random(10));
+            } while (Orders::query()->where('order_no', $orderNo)->exists());
+
+            $order = Orders::create([
+                'order_no' => $orderNo,
+                'application_id' => $application->application_id,
+                'application_code' => $application->application_code,
+                'total_price' => (string) $total,
+                'discount_price' => (string) $discountPrice,
+                'is_paid' => false,
+                'is_active' => true,
+            ]);
+        } else {
+            $order->update([
+                'total_price' => (string) $total,
+                'discount_price' => (string) $discountPrice,
+            ]);
+
+            OrderItems::query()
+                ->where('order_id', $order->order_id)
+                ->delete();
+        }
+
+        foreach ($itemsToCreate as $item) {
+            OrderItems::create([
+                'order_id' => $order->order_id,
+                'application_event_id' => $item['application_event_id'],
+                'event_id' => $item['event_id'],
+                'booth_id' => $item['booth_id'],
+                'event_booth_id' => $item['event_booth_id'],
+                'item_type' => $item['item_type'],
+                'quantity' => $item['quantity'],
+                'price' => $item['price'],
+                'item_description' => $item['item_description'],
+                'is_active' => true,
+            ]);
+        }
     }
 
     public function update(Request $request, Applications $application)
     {
         $validated = $request->validate([
-            'event_id' => ['required', 'uuid', 'exists:events,event_id'],
-            'vendor_id' => ['required', 'uuid', 'exists:vendors,vendor_id'],
-            'participants' => ['required', 'integer', 'min:1', 'max:127'],
-            'no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
-            'category' => ['required', 'string', 'max:255'],
-            'requirements' => ['nullable', 'string'],
-            'plug' => ['nullable', 'boolean'],
-            'application_status' => ['required', 'in:pending,approved,rejected,cancelled'],
+            'vendor_id' => ['nullable', 'uuid', 'exists:vendors,vendor_id'],
+            'application_status' => ['nullable', 'in:pending,approved,rejected,cancelled'],
         ]);
 
-        $application->update([
-            'event_id' => $validated['event_id'],
-            'vendor_id' => $validated['vendor_id'],
-            'participants' => $validated['participants'],
-            'no_of_booths' => $validated['no_of_booths'],
-            'requirements' => $validated['requirements'] ?? null,
-            'plug' => (bool) ($validated['plug'] ?? false),
-            'application_status' => $validated['application_status'],
-        ]);
+        $updates = [];
+        if (!empty($validated['vendor_id'])) {
+            $updates['vendor_id'] = $validated['vendor_id'];
+        }
+        if (!empty($validated['application_status'])) {
+            $updates['application_status'] = $validated['application_status'];
+        }
 
-        return redirect('/applications');
+        if (!empty($updates)) {
+            $application->update($updates);
+        }
+
+        return redirect()->back();
     }
 
     public function destroy(Applications $application)
     {
-        Applications::query()
+        $application->update([
+            'application_status' => 'cancelled',
+        ]);
+
+        ApplicationEvent::query()
             ->where('application_id', $application->application_id)
             ->update([
                 'application_status' => 'cancelled',

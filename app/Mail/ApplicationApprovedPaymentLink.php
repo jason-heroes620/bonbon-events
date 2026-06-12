@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\Events;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -16,7 +15,7 @@ class ApplicationApprovedPaymentLink extends Mailable implements ShouldQueue
         public string $applicationCode,
         public string $paymentUrl,
         public string $userName,
-        public Events $event,
+        public string $eventName,
     ) {}
 
     public function build(): self
@@ -26,7 +25,7 @@ class ApplicationApprovedPaymentLink extends Mailable implements ShouldQueue
                 'applicationCode' => $this->applicationCode,
                 'paymentUrl' => $this->paymentUrl,
                 'userName' => $this->userName,
-                'eventName' => $this->event->event_name,
+                'eventName' => $this->eventName,
             ]);
     }
 }
