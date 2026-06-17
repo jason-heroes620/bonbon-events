@@ -77,11 +77,20 @@ type OrderItem = {
     item_description: string;
 };
 
+type Charge = {
+    charges_id: string;
+    charges_name: string;
+    charges_type: "F" | "P";
+    charges_rate: number | string;
+    sort_order: number;
+};
+
 type PaymentsPageProps = {
     application: Application;
     order: Order;
     invoice: Invoice;
     items: OrderItem[];
+    charges: Charge[];
     applicationEvents: ApplicationEventView[];
     ipay88: {
         enabled: boolean;
@@ -92,6 +101,7 @@ export default function PaymentsShow({
     application,
     order,
     items,
+    charges,
     applicationEvents,
     ipay88,
 }: PaymentsPageProps) {
@@ -157,9 +167,34 @@ export default function PaymentsShow({
         return order ? parseAmount(order.discount_price) : 0;
     }, [order]);
 
-    const calculatedTotal = useMemo(() => {
+    const baseForCharges = useMemo(() => {
         return Math.max(0, calculatedSubtotal - calculatedDiscount);
     }, [calculatedSubtotal, calculatedDiscount]);
+
+    const calculatedCharges = useMemo(() => {
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        return charges
+            .slice()
+            .sort((a, b) => (a.sort_order ?? 1) - (b.sort_order ?? 1))
+            .map((c) => {
+                const rate = parseAmount(c.charges_rate);
+                const amount =
+                    c.charges_type === "P"
+                        ? round2(baseForCharges * (rate / 100))
+                        : round2(rate);
+                return { ...c, calculated_amount: amount };
+            })
+            .filter((c) => c.calculated_amount > 0);
+    }, [charges, baseForCharges]);
+
+    const calculatedChargesTotal = useMemo(() => {
+        return calculatedCharges.reduce((sum, c) => sum + c.calculated_amount, 0);
+    }, [calculatedCharges]);
+
+    const calculatedTotal = useMemo(() => {
+        return baseForCharges + calculatedChargesTotal;
+    }, [baseForCharges, calculatedChargesTotal]);
 
     const allBoothsChosen = useMemo(() => {
         if (!applicationEvents.length) return false;
@@ -401,6 +436,26 @@ export default function PaymentsShow({
                             {formatMoney(calculatedDiscount)}
                         </div>
                     </div>
+                    {calculatedCharges.map((c) => (
+                        <div
+                            key={c.charges_id}
+                            className="flex items-center justify-between"
+                        >
+                            <div className="text-sm text-muted-foreground">
+                                {c.charges_name}
+                                {c.charges_type === "P" ? (
+                                    <span>
+                                        {" "}
+                                        ({parseAmount(c.charges_rate).toFixed(2)}
+                                        %)
+                                    </span>
+                                ) : null}
+                            </div>
+                            <div className="text-sm font-medium">
+                                {formatMoney(c.calculated_amount)}
+                            </div>
+                        </div>
+                    ))}
                     <div className="flex items-center justify-between">
                         <div className="text-sm text-muted-foreground">
                             Total

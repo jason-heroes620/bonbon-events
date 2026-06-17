@@ -103,8 +103,8 @@
                     @if($vendorContactPerson)
                         <div class="muted">{{ $vendorContactPerson }}</div>
                     @endif
-                    @if(!empty($business_name))
-                        <div>{{ $business_name }}</div>
+                    @if(!empty($vendor->business_name))
+                        <div class="muted">{{ $vendor->business_name }}</div>
                     @endif
                     @if($vendorReg)
                         <div class="muted">{{ $vendorReg }}</div>
@@ -122,7 +122,7 @@
                     <p class="section-title">Invoice Summary</p>
                     <table class="meta">
                         <tr>
-                            <td class="label">Status</td>
+                            <td class="label">Payment Status</td>
                             <td class="num">{{ $invoice->invoice_status ?? '-' }}</td>
                         </tr>
                         @if(!empty($eventName ?? null))
@@ -190,6 +190,20 @@
                                 <td class="num">-RM{{ number_format($discount, 2, '.', ',') }}</td>
                             </tr>
                         @endif
+                        @foreach(($charges ?? []) as $charge)
+                            @php
+                                $chargeType = (string) ($charge->charges_type ?? '');
+                                $chargeRate = (float) ($charge->charges_rate ?? 0);
+                                $chargeAmount = (float) ($charge->charges_amount ?? 0);
+                                $chargeName = (string) ($charge->charges_name ?? 'Charge');
+                            @endphp
+                            <tr>
+                                <td class="label right">
+                                    {{ $chargeName }}@if($chargeType === 'P') ({{ rtrim(rtrim(number_format($chargeRate, 2, '.', ','), '0'), '.') }}%)@endif
+                                </td>
+                                <td class="num">RM {{ number_format($chargeAmount, 2, '.', ',') }}</td>
+                            </tr>
+                        @endforeach
                         <tr>
                             <td class="right grand">Total</td>
                             <td class="num grand">RM {{ number_format($total, 2, '.', ',') }}</td>

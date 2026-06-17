@@ -18,6 +18,18 @@ use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
+    private function normalizeRefNo(string $refNo): string
+    {
+        return str_starts_with($refNo, 'TEST-')
+            ? substr($refNo, 5)
+            : $refNo;
+    }
+
+    private function isDummyRefNo(string $refNo): bool
+    {
+        return str_starts_with($refNo, 'TEST-');
+    }
+
     private function ipay88MerchantCode(): string
     {
         return (string) (config('services.ipay88.merchant_code')
@@ -51,6 +63,8 @@ class PaymentController extends Controller
         try {
             $merchantCode = $request->string('MerchantCode')->toString();
             $refNo = $request->string('RefNo')->toString();
+            $lookupRefNo = $this->normalizeRefNo($refNo);
+            $isDummy = $this->isDummyRefNo($refNo);
             $amountRaw = $request->string('Amount')->toString();
             $currency = $request->string('Currency')->toString();
             $status = $request->string('Status')->toString();
@@ -93,13 +107,24 @@ class PaymentController extends Controller
             }
 
             $order = Orders::query()
-                ->where('order_no', $refNo)
+                ->where('order_no', $lookupRefNo)
                 ->where('is_active', true)
                 ->first();
 
             if (!$order) {
+                if ($isDummy) {
+                    Log::info('ipay88.backend.dummy_orderless', [
+                        'ref_no' => $refNo,
+                        'amount' => $paymentAmount,
+                        'status' => $status,
+                    ]);
+
+                    return response('RECEIVEOK', 200);
+                }
+
                 Log::warning('ipay88.backend.order_not_found', [
                     'ref_no' => $refNo,
+                    'lookup_ref_no' => $lookupRefNo,
                 ]);
                 return response('INVALID', 404);
             }
@@ -117,6 +142,17 @@ class PaymentController extends Controller
             }
 
             if ($status !== '1') {
+                if ($isDummy) {
+                    Log::info('ipay88.backend.dummy_failed', [
+                        'ref_no' => $refNo,
+                        'order_no' => $order->order_no,
+                        'status' => $status,
+                        'amount' => $paymentAmount,
+                    ]);
+
+                    return response('RECEIVEOK', 200);
+                }
+
                 Payments::create([
                     'order_id' => $order->order_id,
                     'order_no' => $order->order_no,
@@ -127,6 +163,16 @@ class PaymentController extends Controller
                     'cc_name' => $ccName !== '' ? $ccName : null,
                     'cc_number' => $ccNumber !== '' ? $ccNumber : null,
                     'payment_status' => 0,
+                ]);
+
+                return response('RECEIVEOK', 200);
+            }
+
+            if ($isDummy) {
+                Log::info('ipay88.backend.dummy_success', [
+                    'ref_no' => $refNo,
+                    'order_no' => $order->order_no,
+                    'amount' => $paymentAmount,
                 ]);
 
                 return response('RECEIVEOK', 200);
@@ -169,9 +215,46 @@ class PaymentController extends Controller
         }
     }
 
+    public function frontendCallback(Request $request)
+    {
+        $refNo = $request->string('RefNo')->toString();
+        $lookupRefNo = $this->normalizeRefNo($refNo);
+
+        $order = Orders::query()
+            ->where('order_no', $lookupRefNo)
+            ->first();
+
+        if (!$order) {
+            if ($this->isDummyRefNo($refNo)) {
+                return response(
+                    "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Dummy Payment Complete</title></head><body style=\"font-family: Arial, sans-serif; padding: 24px;\"><h1>Dummy payment callback received</h1><p>Reference: "
+                        . e($refNo)
+                        . "</p><p>Test amount limited to RM 1.00.</p></body></html>"
+                );
+            }
+
+            return redirect('/');
+        }
+
+        $application = Applications::query()
+            ->where('application_id', $order->application_id)
+            ->first();
+
+        if (!$application) {
+            return redirect('/');
+        }
+
+        return redirect()->to('/payments/' . $application->application_code);
+    }
+
     public function payment(Request $request, string $refNo)
     {
-        $order = Orders::query()->where('order_no', $refNo)->first();
+        $lookupRefNo = $this->normalizeRefNo($refNo);
+        $order = Orders::query()->where('order_no', $lookupRefNo)->first();
+        if (!$order) {
+            return response()->json(['error' => 'Order not found'], 404);
+        }
+
         Log::info($order);
         $invoice = Invoices::query()->where('order_id', $order->order_id)->first();
 
@@ -187,10 +270,6 @@ class PaymentController extends Controller
         $application = Applications::query()
             ->where('application_id', $order->application_id)
             ->first();
-
-        if (!$order) {
-            return response()->json(['error' => 'Order not found'], 404);
-        }
 
         // Return a view instead of a redirect
         return Inertia::render('payments/[application_code]', [

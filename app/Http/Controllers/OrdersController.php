@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoices;
+use App\Models\OrderCharges;
 use App\Models\OrderItems;
 use App\Models\Orders;
 use Illuminate\Http\Request;
@@ -45,8 +46,10 @@ class OrdersController extends Controller
                 'orders.order_no',
                 'orders.application_id',
                 'orders.application_code',
+                'orders.sub_total',
                 'orders.total_price',
                 'orders.discount_price',
+                'orders.charges_total',
                 'orders.is_paid',
                 'orders.is_active',
                 'orders.created_at',
@@ -88,20 +91,36 @@ class OrdersController extends Controller
                 'item_description',
             ]);
 
+        $charges = OrderCharges::query()
+            ->where('order_id', $order->order_id)
+            ->orderBy('sort_order')
+            ->orderBy('created_at')
+            ->get([
+                'order_charge_id',
+                'charges_name',
+                'charges_type',
+                'charges_rate',
+                'charges_amount',
+                'sort_order',
+            ]);
+
         return Inertia::render('orders/[id]', [
             'order' => $order->only([
                 'order_id',
                 'order_no',
                 'application_id',
                 'application_code',
+                'sub_total',
                 'total_price',
                 'discount_price',
+                'charges_total',
                 'is_paid',
                 'is_active',
                 'created_at',
             ]),
             'invoice' => $invoice,
             'items' => $items,
+            'charges' => $charges,
         ]);
     }
 }

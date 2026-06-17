@@ -9,6 +9,7 @@ use App\Http\Controllers\ApplicationsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\DepositRefundController;
+use App\Http\Controllers\ChargesController;
 use App\Http\Controllers\InvoiceNoController;
 use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\OrdersController;
@@ -38,6 +39,7 @@ Route::post('/payments/{applicationCode}/request-invoice', [PaymentsController::
     ->middleware('throttle:6,1')
     ->name('payments.request-invoice');
 Route::get('/payments/{applicationCode}/ipay88', [PaymentsController::class, 'redirectToIpay88'])->name('payments.ipay88');
+Route::get('/payments/ipay88-dummy', [PaymentsController::class, 'redirectToIpay88Dummy'])->name('payments.ipay88-dummy');
 Route::match(['GET', 'POST'], '/ipay88/response', [PaymentsController::class, 'response'])->name('ipay88.response');
 // Route::post('/ipay88/backend', [PaymentsController::class, 'backend'])->name('ipay88.backend');
 Route::get('/events/{event}/layout-overview', [EventsController::class, 'layoutOverview'])
@@ -153,6 +155,13 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::get('/deposits/{deposit}', [DepositController::class, 'edit'])->name('deposits.edit');
     Route::put('/deposits/{deposit}', [DepositController::class, 'update'])->name('deposits.update');
     Route::delete('/deposits/{deposit}', [DepositController::class, 'destroy'])->name('deposits.destroy');
+
+    Route::get('/charges', [ChargesController::class, 'index'])->name('charges.index');
+    Route::get('/charges/create', [ChargesController::class, 'create'])->name('charges.create');
+    Route::post('/charges', [ChargesController::class, 'store'])->name('charges.store');
+    Route::get('/charges/{charge}', [ChargesController::class, 'edit'])->name('charges.edit');
+    Route::put('/charges/{charge}', [ChargesController::class, 'update'])->name('charges.update');
+    Route::delete('/charges/{charge}', [ChargesController::class, 'destroy'])->name('charges.destroy');
 
     Route::get('/invoice-nos', [InvoiceNoController::class, 'index'])->name('invoice-nos.index');
     Route::get('/invoice-nos/create', [InvoiceNoController::class, 'create'])->name('invoice-nos.create');

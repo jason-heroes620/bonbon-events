@@ -10,11 +10,14 @@ use App\Models\ApplicationBooths;
 use App\Models\ApplicationEvent;
 use App\Models\ActivityLogs;
 use App\Models\Booths;
+use App\Models\Charges;
 use App\Models\EventBooths;
 use App\Models\EventDeposits;
 use App\Models\Invoices;
+use App\Models\OrderCharges;
 use App\Models\OrderItems;
 use App\Models\Orders;
+use App\Models\Payments;
 use App\Models\Categories;
 use App\Models\Events;
 use App\Models\Vendors;
@@ -457,7 +460,28 @@ class ApplicationsController extends Controller
             ->where('application_id', $application->application_id)
             ->where('is_active', true)
             ->orderByDesc('created_at')
-            ->first(['order_id', 'order_no', 'total_price', 'discount_price', 'is_paid', 'created_at']);
+            ->first(['order_id', 'order_no', 'sub_total', 'discount_price', 'charges_total', 'total_price', 'is_paid', 'created_at']);
+
+        $orderCharges = collect();
+        $amountPaid = 0.0;
+        if ($order) {
+            $orderCharges = OrderCharges::query()
+                ->where('order_id', $order->order_id)
+                ->orderBy('sort_order')
+                ->orderBy('created_at')
+                ->get([
+                    'order_charge_id',
+                    'charges_name',
+                    'charges_type',
+                    'charges_rate',
+                    'charges_amount',
+                    'sort_order',
+                ]);
+
+            $amountPaid = (float) (Payments::query()
+                ->where('order_id', $order->order_id)
+                ->sum('payment_amount') ?? 0);
+        }
 
         $invoice = null;
         if ($order) {
@@ -486,6 +510,8 @@ class ApplicationsController extends Controller
             'categories' => $categories,
             'applicationEvents' => $applicationEventsView,
             'order' => $order,
+            'charges' => $orderCharges,
+            'amountPaid' => $amountPaid,
             'invoice' => $invoice,
             'activityLogs' => $activityLogs,
         ]);
@@ -1110,6 +1136,9 @@ class ApplicationsController extends Controller
                 OrderItems::query()
                     ->where('order_id', $order->order_id)
                     ->update(['is_active' => false]);
+                OrderCharges::query()
+                    ->where('order_id', $order->order_id)
+                    ->delete();
 
                 Invoices::query()
                     ->where('order_id', $order->order_id)
@@ -1118,7 +1147,12 @@ class ApplicationsController extends Controller
             return;
         }
 
-        $total = $subtotal - $discountPrice;
+        $baseForCharges = max(0.0, $subtotal - $discountPrice);
+        $activeCharges = Charges::activeForDate();
+        $chargeResult = Charges::calculateForBase($baseForCharges, $activeCharges);
+        $chargesTotal = (float) ($chargeResult['total'] ?? 0);
+
+        $total = $baseForCharges + $chargesTotal;
 
         if (!$order) {
             do {
@@ -1129,18 +1163,25 @@ class ApplicationsController extends Controller
                 'order_no' => $orderNo,
                 'application_id' => $application->application_id,
                 'application_code' => $application->application_code,
+                'sub_total' => (string) $subtotal,
                 'total_price' => (string) $total,
                 'discount_price' => (string) $discountPrice,
+                'charges_total' => (string) $chargesTotal,
                 'is_paid' => false,
                 'is_active' => true,
             ]);
         } else {
             $order->update([
+                'sub_total' => (string) $subtotal,
                 'total_price' => (string) $total,
                 'discount_price' => (string) $discountPrice,
+                'charges_total' => (string) $chargesTotal,
             ]);
 
             OrderItems::query()
+                ->where('order_id', $order->order_id)
+                ->delete();
+            OrderCharges::query()
                 ->where('order_id', $order->order_id)
                 ->delete();
         }
@@ -1158,6 +1199,28 @@ class ApplicationsController extends Controller
                 'item_description' => $item['item_description'],
                 'is_active' => true,
             ]);
+        }
+
+        foreach (($chargeResult['lines'] ?? []) as $line) {
+            OrderCharges::create([
+                'order_id' => $order->order_id,
+                'charges_id' => $line['charges_id'] ?? null,
+                'charges_name' => $line['charges_name'] ?? 'Charge',
+                'charges_type' => $line['charges_type'] ?? 'F',
+                'charges_rate' => (string) ($line['charges_rate'] ?? 0),
+                'charges_amount' => (string) ($line['charges_amount'] ?? 0),
+                'sort_order' => (int) ($line['sort_order'] ?? 1),
+            ]);
+        }
+
+        $existingInvoice = Invoices::query()
+            ->where('order_id', $order->order_id)
+            ->orderByDesc('created_at')
+            ->first(['invoice_id']);
+
+        if ($existingInvoice) {
+            $order->refresh();
+            $this->invoiceService->upsertInvoiceForOrder($order, $application);
         }
     }
 

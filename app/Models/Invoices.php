@@ -18,9 +18,18 @@ class Invoices extends Model
         'application_id',
         'invoice_no',
         'invoice_date',
+        'sub_total',
         'discount_amount',
+        'charges_total',
         'invoice_amount',
         'invoice_file',
         'invoice_status',
+    ];
+
+    protected $casts = [
+        'sub_total' => 'float',
+        'discount_amount' => 'float',
+        'charges_total' => 'float',
+        'invoice_amount' => 'float',
     ];
 }

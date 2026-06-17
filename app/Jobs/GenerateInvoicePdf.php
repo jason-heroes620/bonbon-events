@@ -3,7 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\Invoices;
+use App\Models\InvoiceCharges;
 use App\Models\OrderItems;
+use App\Models\OrderCharges;
 use App\Models\Orders;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -49,9 +51,35 @@ class GenerateInvoicePdf implements ShouldQueue
                 'item_description',
             ]);
 
-        $subtotal = (float) $items->sum(fn($item) => (float) $item->price * (int) $item->quantity);
+        $subtotal = (float) ($invoice->sub_total ?? $order->sub_total ?? $items->sum(fn($item) => (float) $item->price * (int) $item->quantity));
         $discount = (float) ($invoice->discount_amount ?? $order->discount_price ?? 0);
         $total = (float) ($invoice->invoice_amount ?? $order->total_price ?? max(0, $subtotal - $discount));
+
+        $charges = InvoiceCharges::query()
+            ->where('invoice_id', $invoice->invoice_id)
+            ->orderBy('sort_order')
+            ->orderBy('created_at')
+            ->get([
+                'charges_name',
+                'charges_type',
+                'charges_rate',
+                'charges_amount',
+                'sort_order',
+            ]);
+
+        if ($charges->isEmpty()) {
+            $charges = OrderCharges::query()
+                ->where('order_id', $order->order_id)
+                ->orderBy('sort_order')
+                ->orderBy('created_at')
+                ->get([
+                    'charges_name',
+                    'charges_type',
+                    'charges_rate',
+                    'charges_amount',
+                    'sort_order',
+                ]);
+        }
 
         $application = $order->application;
         $vendor = $application?->vendor;
@@ -69,6 +97,7 @@ class GenerateInvoicePdf implements ShouldQueue
             'items' => $items,
             'subtotal' => $subtotal,
             'discount' => $discount,
+            'charges' => $charges,
             'total' => $total,
             'eventName' => $eventName,
             'companyName' => (string) config('app.name', 'BonBon'),

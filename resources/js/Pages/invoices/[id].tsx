@@ -44,6 +44,15 @@ type OrderItem = {
     item_description: string;
 };
 
+type InvoiceCharge = {
+    invoice_charge_id: string;
+    charges_name: string;
+    charges_type: "F" | "P";
+    charges_rate: number | string;
+    charges_amount: number | string;
+    sort_order: number;
+};
+
 type Vendor = {
     vendor_id: string;
     vendor_name: string;
@@ -62,6 +71,7 @@ type InvoiceShowProps = {
     invoice: Invoice;
     order: Order;
     items: OrderItem[];
+    charges: InvoiceCharge[];
     subtotal: number | string;
     discount: number | string;
     total: number | string;
@@ -74,6 +84,7 @@ export default function InvoiceShow({
     invoice,
     order,
     items,
+    charges,
     subtotal,
     discount,
     total,
@@ -296,6 +307,23 @@ export default function InvoiceShow({
                         {formatAmount(discount)}
                     </div>
                 </div>
+                {charges.map((c) => (
+                    <div key={c.invoice_charge_id} className="flex justify-end">
+                        <div className="text-sm">
+                            <span className="text-muted-foreground">
+                                {c.charges_name}
+                                {c.charges_type === "P" ? (
+                                    <span>
+                                        {" "}
+                                        ({formatAmount(c.charges_rate)}%)
+                                    </span>
+                                ) : null}
+                                :
+                            </span>{" "}
+                            {formatAmount(c.charges_amount)}
+                        </div>
+                    </div>
+                ))}
                 <div className="flex justify-end">
                     <div className="text-base font-semibold">
                         Total: {formatAmount(total)}

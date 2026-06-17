@@ -8,10 +8,13 @@ use App\Models\ApplicationBooths;
 use App\Models\ApplicationEvent;
 use App\Models\Applications;
 use App\Models\Booths;
+use App\Models\Charges;
 use App\Models\EventBooths;
 use App\Models\EventDeposits;
 use App\Models\Events;
 use App\Models\Invoices;
+use App\Models\InvoiceCharges;
+use App\Models\OrderCharges;
 use App\Models\OrderItems;
 use App\Models\Orders;
 use App\Models\Payments;
@@ -214,6 +217,16 @@ class PaymentsController extends Controller
             ];
         });
 
+        $charges = Charges::activeForDate()
+            ->map(fn($c) => $c->only([
+                'charges_id',
+                'charges_name',
+                'charges_type',
+                'charges_rate',
+                'sort_order',
+            ]))
+            ->values();
+
         return Inertia::render('payments/[application_code]', [
             'application' => $application->only([
                 'application_id',
@@ -223,6 +236,7 @@ class PaymentsController extends Controller
             'order' => $order,
             'invoice' => $invoice,
             'items' => $items,
+            'charges' => $charges,
             'applicationEvents' => $applicationEventsView,
             'ipay88' => [
                 'enabled' => $this->ipay88MerchantCode() !== '' && $this->ipay88MerchantKey() !== '',
@@ -582,6 +596,32 @@ class PaymentsController extends Controller
         $discount = (float) ($invoice->discount_amount ?? $order->discount_price ?? 0);
         $total = (float) ($invoice->invoice_amount ?? $order->total_price ?? max(0, $subtotal - $discount));
 
+        $charges = InvoiceCharges::query()
+            ->where('invoice_id', $invoice->invoice_id)
+            ->orderBy('sort_order')
+            ->orderBy('created_at')
+            ->get([
+                'charges_name',
+                'charges_type',
+                'charges_rate',
+                'charges_amount',
+                'sort_order',
+            ]);
+
+        if ($charges->isEmpty()) {
+            $charges = OrderCharges::query()
+                ->where('order_id', $order->order_id)
+                ->orderBy('sort_order')
+                ->orderBy('created_at')
+                ->get([
+                    'charges_name',
+                    'charges_type',
+                    'charges_rate',
+                    'charges_amount',
+                    'sort_order',
+                ]);
+        }
+
         $applicationModel = $order->application;
         $vendorModel = $applicationModel?->vendor;
         $eventName = $applicationModel?->events
@@ -598,6 +638,7 @@ class PaymentsController extends Controller
             'items' => $items,
             'subtotal' => $subtotal,
             'discount' => $discount,
+            'charges' => $charges,
             'total' => $total,
             'eventName' => $eventName,
             'companyName' => (string) config('app.name', 'BonBon'),
@@ -751,6 +792,9 @@ class PaymentsController extends Controller
                 OrderItems::query()
                     ->where('order_id', $order->order_id)
                     ->update(['is_active' => false]);
+                OrderCharges::query()
+                    ->where('order_id', $order->order_id)
+                    ->delete();
 
                 Invoices::query()
                     ->where('order_id', $order->order_id)
@@ -759,7 +803,12 @@ class PaymentsController extends Controller
             return;
         }
 
-        $total = $subtotal - $discountPrice;
+        $baseForCharges = max(0.0, $subtotal - $discountPrice);
+        $activeCharges = Charges::activeForDate();
+        $chargeResult = Charges::calculateForBase($baseForCharges, $activeCharges);
+        $chargesTotal = (float) ($chargeResult['total'] ?? 0);
+
+        $total = $baseForCharges + $chargesTotal;
 
         if (!$order) {
             do {
@@ -770,18 +819,25 @@ class PaymentsController extends Controller
                 'order_no' => $orderNo,
                 'application_id' => $application->application_id,
                 'application_code' => $application->application_code,
+                'sub_total' => (string) $subtotal,
                 'total_price' => (string) $total,
                 'discount_price' => (string) $discountPrice,
+                'charges_total' => (string) $chargesTotal,
                 'is_paid' => false,
                 'is_active' => true,
             ]);
         } else {
             $order->update([
+                'sub_total' => (string) $subtotal,
                 'total_price' => (string) $total,
                 'discount_price' => (string) $discountPrice,
+                'charges_total' => (string) $chargesTotal,
             ]);
 
             OrderItems::query()
+                ->where('order_id', $order->order_id)
+                ->delete();
+            OrderCharges::query()
                 ->where('order_id', $order->order_id)
                 ->delete();
         }
@@ -799,6 +855,28 @@ class PaymentsController extends Controller
                 'item_description' => $item['item_description'],
                 'is_active' => true,
             ]);
+        }
+
+        foreach (($chargeResult['lines'] ?? []) as $line) {
+            OrderCharges::create([
+                'order_id' => $order->order_id,
+                'charges_id' => $line['charges_id'] ?? null,
+                'charges_name' => $line['charges_name'] ?? 'Charge',
+                'charges_type' => $line['charges_type'] ?? 'F',
+                'charges_rate' => (string) ($line['charges_rate'] ?? 0),
+                'charges_amount' => (string) ($line['charges_amount'] ?? 0),
+                'sort_order' => (int) ($line['sort_order'] ?? 1),
+            ]);
+        }
+
+        $existingInvoice = Invoices::query()
+            ->where('order_id', $order->order_id)
+            ->orderByDesc('created_at')
+            ->first(['invoice_id']);
+
+        if ($existingInvoice) {
+            $order->refresh();
+            $this->invoiceService->upsertInvoiceForOrder($order, $application);
         }
     }
 
@@ -841,6 +919,56 @@ class PaymentsController extends Controller
         $amount = number_format((float) $order->total_price, 2, '.', '');
         $refNo = $order->order_no;
 
+        $vendor = Vendors::query()
+            ->where('vendor_id', $application->vendor_id)
+            ->first(['vendor_name', 'vendor_email', 'vendor_contact_no']);
+
+        return $this->buildIpay88RedirectResponse(
+            amount: $amount,
+            refNo: $refNo,
+            prodDesc: 'BonBon Event Payment ' . $application->application_code,
+            remark: (string) $application->application_code,
+            userName: (string) ($vendor?->vendor_name ?: 'Customer'),
+            userEmail: (string) ($vendor?->vendor_email ?: 'customer@example.com'),
+            userContact: (string) ($vendor?->vendor_contact_no ?: '0000000000'),
+        );
+    }
+
+    public function redirectToIpay88Dummy()
+    {
+        $amount = '1.00';
+        $refNo = 'TEST-' . Str::upper(Str::random(10));
+
+        return $this->buildIpay88RedirectResponse(
+            amount: $amount,
+            refNo: $refNo,
+            prodDesc: 'BonBon Event Payment Dummy Test',
+            remark: 'DUMMY_TEST',
+            userName: 'Dummy Tester',
+            userEmail: 'dummy@example.com',
+            userContact: '0000000000',
+        );
+    }
+
+    private function buildIpay88RedirectResponse(
+        string $amount,
+        string $refNo,
+        string $prodDesc,
+        string $remark,
+        string $userName,
+        string $userEmail,
+        string $userContact,
+    ) {
+        $merchantCode = $this->ipay88MerchantCode();
+        $merchantKey = $this->ipay88MerchantKey();
+        if ($merchantCode === '' || $merchantKey === '') {
+            throw ValidationException::withMessages([
+                'ipay88' => ['iPay88 is not configured.'],
+            ]);
+        }
+
+        $currency = $this->ipay88Currency();
+
         $responseUrl = rtrim((string) config('services.ipay88.host_url'), '/') . '/api/payments/frontend-callback';
         $backendUrl = rtrim((string) config('services.ipay88.host_url'), '/') . '/api/payments/backend-callback';
 
@@ -851,15 +979,6 @@ class PaymentsController extends Controller
             ]);
         }
 
-        $vendor = Vendors::query()
-            ->where('vendor_id', $application->vendor_id)
-            ->first(['vendor_name', 'vendor_email', 'vendor_contact_no']);
-
-        $prodDesc = 'BonBon Event Payment ' . $application->application_code;
-        $userName = $vendor?->vendor_name ?: 'Customer';
-        $userEmail = $vendor?->vendor_email ?: 'customer@example.com';
-        $userContact = $vendor?->vendor_contact_no ?: '0000000000';
-
         $fields = [
             'MerchantCode' => $merchantCode,
             'RefNo' => $refNo,
@@ -869,7 +988,7 @@ class PaymentsController extends Controller
             'UserName' => $userName,
             'UserEmail' => $userEmail,
             'UserContact' => $userContact,
-            'Remark' => $application->application_code,
+            'Remark' => $remark,
             'Signature' => $signature,
             'Xfield1' => 'Events',
             'ResponseURL' => $responseUrl,

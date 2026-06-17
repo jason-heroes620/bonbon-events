@@ -26,6 +26,8 @@ type InvoiceRow = {
     invoice_no: string;
     invoice_date: string;
     invoice_status: string;
+    sub_total: number | string;
+    charges_total: number | string;
     invoice_amount: number | string;
     order_id: string;
     application_id: string;
@@ -163,7 +165,13 @@ export default function InvoicesIndex({
                                         Status
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
-                                        Amount
+                                        Subtotal
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Charges
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Total
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
                                         Invoice Date
@@ -177,7 +185,7 @@ export default function InvoicesIndex({
                                 {invoices.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={6}
+                                            colSpan={8}
                                             className="px-4 py-8 text-center text-muted-foreground"
                                         >
                                             No invoices found.
@@ -215,6 +223,16 @@ export default function InvoicesIndex({
                                                 >
                                                     {invoice.invoice_status}
                                                 </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatAmount(
+                                                    invoice.sub_total,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatAmount(
+                                                    invoice.charges_total ?? 0,
+                                                )}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {formatAmount(

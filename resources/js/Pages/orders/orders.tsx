@@ -26,14 +26,17 @@ type OrderRow = {
     order_no: string;
     application_code: string;
     total_price: number | string;
+    sub_total: number | string;
     discount_price: number | string;
     is_paid: boolean;
+    charges_total: number | string;
     is_active: boolean;
     created_at: Date;
     invoice_id?: string | null;
     invoice_no?: string | null;
     invoice_status?: string | null;
 };
+
 
 type OrdersPageProps = {
     orders: Paginated<OrderRow>;
@@ -161,6 +164,12 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                         Invoice
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
+                                        Subtotal
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Charges
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
                                         Total
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
@@ -178,7 +187,7 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                 {orders.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={7}
+                                            colSpan={9}
                                             className="px-4 py-8 text-center text-muted-foreground"
                                         >
                                             No orders found.
@@ -214,6 +223,14 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                                     <span className="text-muted-foreground">
                                                         -
                                                     </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatAmount(order.sub_total)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatAmount(
+                                                    order.charges_total ?? 0,
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">

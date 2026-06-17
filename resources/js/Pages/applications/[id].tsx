@@ -50,10 +50,21 @@ type ApplicationEventView = {
 type ApplicationOrder = {
     order_id: string;
     order_no: string;
+    sub_total: number | string;
     total_price: number | string;
     discount_price: number | string;
+    charges_total: number | string;
     is_paid: boolean;
     created_at: string;
+};
+
+type ApplicationOrderCharge = {
+    order_charge_id: string;
+    charges_name: string;
+    charges_type: "F" | "P";
+    charges_rate: number | string;
+    charges_amount: number | string;
+    sort_order: number;
 };
 
 type ApplicationInvoice = {
@@ -92,6 +103,8 @@ type EditApplicationProps = {
     categories: Pick<Category, "category_id" | "category_name">[];
     applicationEvents: ApplicationEventView[];
     order: ApplicationOrder | null;
+    charges: ApplicationOrderCharge[];
+    amountPaid: number | string;
     invoice: ApplicationInvoice | null;
     activityLogs: ApplicationActivityLog[];
 };
@@ -102,6 +115,8 @@ export default function EditApplication({
     categories,
     applicationEvents,
     order,
+    charges,
+    amountPaid,
     invoice,
     activityLogs,
 }: EditApplicationProps) {
@@ -218,9 +233,40 @@ export default function EditApplication({
     }, [applicationEvents, selectedByEvent]);
 
     const calculatedDiscount = parseAmount(discountPrice);
+    const baseForCharges = Math.max(0, calculatedSubtotal - calculatedDiscount);
+
+    const calculatedCharges = useMemo(() => {
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        return charges.map((c) => {
+            const rate = parseAmount(c.charges_rate);
+            const amount =
+                c.charges_type === "P"
+                    ? round2(baseForCharges * (rate / 100))
+                    : round2(rate);
+
+            return {
+                ...c,
+                calculated_amount: amount,
+            };
+        });
+    }, [charges, baseForCharges]);
+
+    const calculatedChargesTotal = useMemo(() => {
+        return calculatedCharges.reduce(
+            (sum, c) => sum + parseAmount(c.calculated_amount),
+            0,
+        );
+    }, [calculatedCharges]);
+
+    const calculatedTotalAmount = baseForCharges + calculatedChargesTotal;
+    const currentTotalAmount = order
+        ? parseAmount(order.total_price)
+        : calculatedTotalAmount;
+    const amountPaidValue = parseAmount(amountPaid);
     const totalPayableAmount = Math.max(
         0,
-        calculatedSubtotal - calculatedDiscount,
+        currentTotalAmount - amountPaidValue,
     );
 
     return (
@@ -394,7 +440,9 @@ export default function EditApplication({
                             <div className="text-xs text-muted-foreground">
                                 Payment
                             </div>
-                            <div className="text-sm font-medium">
+                            <div
+                                className={`text-sm font-medium ${order?.is_paid ? "text-green-500" : "text-red-500"}`}
+                            >
                                 {order
                                     ? order.is_paid
                                         ? "PAID"
@@ -655,113 +703,180 @@ export default function EditApplication({
                     })}
                 </div>
 
-                <div className="rounded-lg border bg-white p-6 space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-muted-foreground">
-                                Subtotal
-                            </div>
-                            <div className="text-sm font-medium">
-                                {formatAmount(calculatedSubtotal)}
-                            </div>
+                <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+                    <div className="rounded-lg border bg-white p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-base font-semibold">
+                                Financial Ledger
+                            </h2>
                         </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-muted-foreground">
-                                Discount
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between rounded border p-3">
+                                <div className="text-xs text-muted-foreground">
+                                    Subtotal
+                                </div>
+                                <div className="text-sm font-medium">
+                                    {formatAmount(calculatedSubtotal)}
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <Input
-                                    value={discountPrice}
-                                    disabled={orderPaid || !applicationApproved}
-                                    onChange={(e) =>
-                                        setDiscountPrice(e.target.value)
-                                    }
-                                    inputMode="decimal"
-                                    type="number"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={
-                                        orderPaid ||
-                                        !applicationApproved ||
-                                        parseAmount(discountPrice) ===
-                                            parseAmount(
-                                                order?.discount_price ?? "0",
+
+                            <div className="rounded border p-3 space-y-2">
+                                <div className="text-xs text-muted-foreground">
+                                    Discount
+                                </div>
+                                <div className="flex items-end gap-2">
+                                    <Input
+                                        value={discountPrice}
+                                        disabled={
+                                            orderPaid || !applicationApproved
+                                        }
+                                        onChange={(e) =>
+                                            setDiscountPrice(e.target.value)
+                                        }
+                                        inputMode="decimal"
+                                        type="number"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            orderPaid ||
+                                            !applicationApproved ||
+                                            parseAmount(discountPrice) ===
+                                                parseAmount(
+                                                    order?.discount_price ??
+                                                        "0",
+                                                )
+                                        }
+                                        onClick={() =>
+                                            router.post(
+                                                `/applications/${application.application_id}/update-discount`,
+                                                {
+                                                    discount_price:
+                                                        discountPrice,
+                                                },
+                                                { preserveScroll: true },
                                             )
-                                    }
-                                    onClick={() =>
-                                        router.post(
-                                            `/applications/${application.application_id}/update-discount`,
-                                            {
-                                                discount_price: discountPrice,
-                                            },
-                                            { preserveScroll: true },
-                                        )
-                                    }
-                                >
-                                    Save Discount
-                                </Button>
+                                        }
+                                    >
+                                        Save
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-muted-foreground">
-                                Total Payable Amount
+
+                            <div className="rounded border p-3 space-y-2">
+                                <div className="text-xs text-muted-foreground">
+                                    Charges
+                                </div>
+                                {calculatedCharges.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {calculatedCharges.map((c) => (
+                                            <div
+                                                key={c.order_charge_id}
+                                                className="flex items-center justify-between"
+                                            >
+                                                <div className="text-sm text-muted-foreground">
+                                                    {c.charges_name}
+                                                    {c.charges_type === "P" ? (
+                                                        <span>
+                                                            {" "}
+                                                            (
+                                                            {parseAmount(
+                                                                c.charges_rate,
+                                                            ).toFixed(2)}
+                                                            %)
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                                <div className="text-sm font-medium">
+                                                    {formatAmount(
+                                                        c.calculated_amount,
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-muted-foreground">
+                                        No charges
+                                    </div>
+                                )}
                             </div>
-                            <div className="text-lg font-semibold">
-                                {formatAmount(totalPayableAmount)}
-                            </div>
-                        </div>
-                        <div className="rounded border p-3">
-                            <div className="text-xs text-muted-foreground">
-                                Current Order Total
-                            </div>
-                            <div className="text-sm font-medium">
-                                {order ? formatAmount(order.total_price) : "-"}
+
+                            <div className="flex items-center justify-between rounded border p-3">
+                                <div className="text-xs text-muted-foreground">
+                                    Total Amount
+                                </div>
+                                <div className="text-lg font-semibold">
+                                    {formatAmount(calculatedTotalAmount)}
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap justify-end gap-2">
-                        {/* <Button
-                            variant="outline"
-                            disabled={!order || orderPaid}
-                            onClick={() =>
-                                router.post(
-                                    `/applications/${application.application_id}/generate-invoice`,
-                                    {},
-                                    { preserveScroll: true },
-                                )
-                            }
-                        >
-                            Generate Invoice
-                        </Button> */}
-                        <Button
-                            variant="outline"
-                            disabled={!order || orderPaid}
-                            onClick={() =>
-                                router.post(
-                                    `/applications/${application.application_id}/send-payment-reminder`,
-                                    {},
-                                    {
-                                        preserveScroll: true,
-                                        onSuccess: () => {
-                                            toast.success(
-                                                "Payment reminder sent successfully.",
-                                            );
+                    <div className="rounded-lg border bg-white p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-base font-semibold">Payment</h2>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between rounded border p-3">
+                                <div className="text-xs text-muted-foreground">
+                                    Total
+                                </div>
+                                <div className="text-sm font-medium">
+                                    {formatAmount(currentTotalAmount)}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between rounded border p-3">
+                                <div className="text-xs text-muted-foreground">
+                                    Amount Paid
+                                </div>
+                                <div className="text-sm font-medium">
+                                    {formatAmount(amountPaidValue)}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between rounded border p-3">
+                                <div className="text-xs text-muted-foreground">
+                                    Total Payable
+                                </div>
+                                <div className="text-lg font-semibold">
+                                    {formatAmount(totalPayableAmount)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                                variant="outline"
+                                disabled={!order || orderPaid}
+                                onClick={() =>
+                                    router.post(
+                                        `/applications/${application.application_id}/send-payment-reminder`,
+                                        {},
+                                        {
+                                            preserveScroll: true,
+                                            onSuccess: () => {
+                                                toast.success(
+                                                    "Payment reminder sent successfully.",
+                                                );
+                                            },
+                                            onError: () => {
+                                                toast.error(
+                                                    "Failed to send payment reminder.",
+                                                );
+                                            },
                                         },
-                                        onError: () => {
-                                            toast.error(
-                                                "Failed to send payment reminder.",
-                                            );
-                                        },
-                                    },
-                                )
-                            }
-                        >
-                            Send Payment Reminder
-                        </Button>
+                                    )
+                                }
+                            >
+                                Send Payment Reminder
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

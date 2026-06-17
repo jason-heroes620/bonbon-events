@@ -125,6 +125,10 @@ const allItems: {
                 url: "/deposits",
             },
             {
+                title: "Charges",
+                url: "/charges",
+            },
+            {
                 title: "Invoice No",
                 url: "/invoice-nos",
             },

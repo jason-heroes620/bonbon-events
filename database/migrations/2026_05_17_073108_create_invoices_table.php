@@ -17,6 +17,7 @@ return new class extends Migration
             $table->uuid('application_id');
             $table->string('invoice_no');
             $table->string('invoice_date');
+            $table->decimal('sub_total', 10, 2);
             $table->decimal('discount_amount', 10, 2)->default(0);
             $table->decimal('invoice_amount', 10, 2)->default(0);
             $table->string('invoice_file')->nullable();

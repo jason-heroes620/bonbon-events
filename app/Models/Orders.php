@@ -19,13 +19,19 @@ class Orders extends Model
         'order_no',
         'application_id',
         'application_code',
-        'total_price',
+        'sub_total',
         'discount_price',
+        'charges_total',
+        'total_price',
         'is_paid',
         'is_active',
     ];
 
     protected $casts = [
+        'sub_total' => 'float',
+        'discount_price' => 'float',
+        'charges_total' => 'float',
+        'total_price' => 'float',
         'is_paid' => 'boolean',
         'is_active' => 'boolean',
     ];

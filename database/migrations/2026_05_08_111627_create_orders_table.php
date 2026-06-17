@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('order_no', 10)->unique();
             $table->uuid('application_id');
             $table->string('application_code', 8);
+            $table->decimal('sub_total', 8, 2);
             $table->decimal('total_price', 8, 2);
             $table->decimal('discount_price', 8, 2)->default(0.00);
             $table->boolean('is_paid')->default(false);

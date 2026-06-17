@@ -9,8 +9,10 @@ type Order = {
     order_no: string;
     application_id: string;
     application_code: string;
+    sub_total: number | string;
     total_price: number | string;
     discount_price: number | string;
+    charges_total: number | string;
     is_paid: boolean;
     is_active: boolean;
     created_at: string;
@@ -32,13 +34,28 @@ type OrderItem = {
     item_description: string;
 };
 
+type OrderCharge = {
+    order_charge_id: string;
+    charges_name: string;
+    charges_type: "F" | "P";
+    charges_rate: number | string;
+    charges_amount: number | string;
+    sort_order: number;
+};
+
 type OrderShowProps = {
     order: Order;
     invoice: Invoice;
     items: OrderItem[];
+    charges: OrderCharge[];
 };
 
-export default function OrderShow({ order, invoice, items }: OrderShowProps) {
+export default function OrderShow({
+    order,
+    invoice,
+    items,
+    charges,
+}: OrderShowProps) {
     const formatAmount = (value: number | string) => {
         const n = typeof value === "number" ? value : Number(value);
         if (Number.isFinite(n)) return n.toFixed(2);
@@ -162,6 +179,55 @@ export default function OrderShow({ order, invoice, items }: OrderShowProps) {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <div className="rounded-lg border bg-white p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                            Subtotal
+                        </div>
+                        <div className="text-sm font-medium">
+                            {formatAmount(order.sub_total)}
+                        </div>
+                    </div>
+
+                    {Number(order.discount_price ?? 0) > 0 ? (
+                        <div className="flex items-center justify-between">
+                            <div className="text-sm text-muted-foreground">
+                                Discount
+                            </div>
+                            <div className="text-sm font-medium">
+                                -{formatAmount(order.discount_price)}
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {charges.map((c) => (
+                        <div
+                            key={c.order_charge_id}
+                            className="flex items-center justify-between"
+                        >
+                            <div className="text-sm text-muted-foreground">
+                                {c.charges_name}
+                                {c.charges_type === "P" ? (
+                                    <span>
+                                        {" "}
+                                        ({formatAmount(c.charges_rate)}%)
+                                    </span>
+                                ) : null}
+                            </div>
+                            <div className="text-sm font-medium">
+                                {formatAmount(c.charges_amount)}
+                            </div>
+                        </div>
+                    ))}
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                        <div className="text-sm font-semibold">Total</div>
+                        <div className="text-sm font-semibold">
+                            {formatAmount(order.total_price)}
+                        </div>
                     </div>
                 </div>
 

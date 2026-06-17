@@ -118,6 +118,20 @@ export type Deposit = {
     updated_at?: string;
 };
 
+export type Charge = {
+    charges_id: string;
+    charges_name: string;
+    charges_type: "F" | "P";
+    charges_rate: number | string;
+    charges_description: string | null;
+    charges_start_date: string;
+    charges_end_date: string | null;
+    charges_status: boolean;
+    sort_order: number;
+    created_at?: string;
+    updated_at?: string;
+};
+
 export type Vendor = {
     vendor_id: string;
     user_id: string;
