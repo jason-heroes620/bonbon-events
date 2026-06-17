@@ -31,6 +31,7 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+Route::get('/payments/ipay88-dummy', [PaymentsController::class, 'redirectToIpay88Dummy'])->name('payments.ipay88-dummy');
 Route::get('/payments/{applicationCode}', [PaymentsController::class, 'show'])->name('payments.show');
 Route::post('/payments/{applicationCode}/prepare', [PaymentsController::class, 'prepare'])
     ->middleware('throttle:6,1')
@@ -39,7 +40,6 @@ Route::post('/payments/{applicationCode}/request-invoice', [PaymentsController::
     ->middleware('throttle:6,1')
     ->name('payments.request-invoice');
 Route::get('/payments/{applicationCode}/ipay88', [PaymentsController::class, 'redirectToIpay88'])->name('payments.ipay88');
-Route::get('/payments/ipay88-dummy', [PaymentsController::class, 'redirectToIpay88Dummy'])->name('payments.ipay88-dummy');
 Route::match(['GET', 'POST'], '/ipay88/response', [PaymentsController::class, 'response'])->name('ipay88.response');
 // Route::post('/ipay88/backend', [PaymentsController::class, 'backend'])->name('ipay88.backend');
 Route::get('/events/{event}/layout-overview', [EventsController::class, 'layoutOverview'])
