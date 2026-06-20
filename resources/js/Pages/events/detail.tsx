@@ -368,7 +368,7 @@ export default function EventDetail({
                             </Link>
                         </div>
                         <div className="flex rounded-lg bg-white">
-                            <div className="relative h-80 w-full md:h-96">
+                            <div className="relative h-auto w-full">
                                 <img
                                     src={currentImage}
                                     alt={event.event_name}
