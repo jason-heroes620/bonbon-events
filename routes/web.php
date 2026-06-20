@@ -19,6 +19,7 @@ use App\Http\Controllers\UsersController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\RejectVendorAccess;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -203,6 +204,11 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/storage-link', function () {
+        Artisan::call('storage:link');
+        return Artisan::output(); // This will echo "The [public/storage] directory has been linked."
+    });
 });
 
 Route::post('/events/participate-multi', [ApplicationsController::class, 'participateMulti'])
