@@ -108,8 +108,19 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {group.booths.map(
-                                                        (booth) => (
+                                                    {group.booths
+                                                        .sort((a, b) =>
+                                                            a.booth_name.localeCompare(
+                                                                b.booth_name,
+                                                                undefined,
+                                                                {
+                                                                    numeric: true,
+                                                                    sensitivity:
+                                                                        "base",
+                                                                },
+                                                            ),
+                                                        )
+                                                        .map((booth) => (
                                                             <tr
                                                                 key={
                                                                     booth.booth_id
@@ -128,8 +139,7 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                                                                         : "-"}
                                                                 </td>
                                                             </tr>
-                                                        ),
-                                                    )}
+                                                        ))}
                                                 </tbody>
                                             </table>
                                         </div>

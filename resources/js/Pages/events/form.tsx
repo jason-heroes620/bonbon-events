@@ -623,10 +623,21 @@ export default function EventForm({
                         </label>
                         <MultiSelect
                             className={selectClassName}
-                            options={availableBoothsForType.map((b) => ({
-                                label: b.booth_name,
-                                value: b.booth_id,
-                            }))}
+                            options={availableBoothsForType
+                                .sort((a, b) =>
+                                    a.booth_name.localeCompare(
+                                        b.booth_name,
+                                        undefined,
+                                        {
+                                            numeric: true,
+                                            sensitivity: "base",
+                                        },
+                                    ),
+                                )
+                                .map((b) => ({
+                                    label: b.booth_name,
+                                    value: b.booth_id,
+                                }))}
                             onValueChange={setSelectedBoothIds}
                             defaultValue={selectedBoothIds}
                             placeholder="Select booths"

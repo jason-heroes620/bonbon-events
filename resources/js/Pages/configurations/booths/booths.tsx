@@ -170,56 +170,68 @@ export default function BoothsIndex({ booths, filters }: BoothsPageProps) {
                                         </td>
                                     </tr>
                                 ) : (
-                                    booths.data.map((booth) => (
-                                        <tr
-                                            key={booth.booth_id}
-                                            className="border-b last:border-b-0"
-                                        >
-                                            <td className="px-4 py-3 font-medium">
-                                                {booth.booth_name}
-                                            </td>
-                                            <td className="px-4 py-3 text-muted-foreground">
-                                                {booth.boothType
-                                                    ?.booth_type_name ??
-                                                    booth.booth_type
+                                    booths.data
+                                        .sort((a, b) =>
+                                            a.booth_name.localeCompare(
+                                                b.booth_name,
+                                                undefined,
+                                                {
+                                                    numeric: true,
+                                                    sensitivity: "base",
+                                                },
+                                            ),
+                                        )
+                                        .map((booth) => (
+                                            <tr
+                                                key={booth.booth_id}
+                                                className="border-b last:border-b-0"
+                                            >
+                                                <td className="px-4 py-3 font-medium">
+                                                    {booth.booth_name}
+                                                </td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {booth.boothType
                                                         ?.booth_type_name ??
-                                                    ""}
-                                            </td>
-                                            <td className="px-4 py-3 text-muted-foreground">
-                                                {booth.booth_description ?? ""}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span
-                                                    className={cn(
-                                                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                                        booth.is_active
-                                                            ? "bg-emerald-100 text-emerald-800"
-                                                            : "bg-gray-100 text-gray-800",
-                                                    )}
-                                                >
-                                                    {booth.is_active
-                                                        ? "Active"
-                                                        : "Inactive"}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Link
-                                                        href={`/booths/${booth.booth_id}`}
-                                                        className={buttonVariants(
-                                                            {
-                                                                variant:
-                                                                    "outline",
-                                                                size: "sm",
-                                                            },
+                                                        booth.booth_type
+                                                            ?.booth_type_name ??
+                                                        ""}
+                                                </td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {booth.booth_description ??
+                                                        ""}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span
+                                                        className={cn(
+                                                            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                                            booth.is_active
+                                                                ? "bg-emerald-100 text-emerald-800"
+                                                                : "bg-gray-100 text-gray-800",
                                                         )}
                                                     >
-                                                        Edit
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                                        {booth.is_active
+                                                            ? "Active"
+                                                            : "Inactive"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Link
+                                                            href={`/booths/${booth.booth_id}`}
+                                                            className={buttonVariants(
+                                                                {
+                                                                    variant:
+                                                                        "outline",
+                                                                    size: "sm",
+                                                                },
+                                                            )}
+                                                        >
+                                                            Edit
+                                                        </Link>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
                                 )}
                             </tbody>
                         </table>
