@@ -154,7 +154,8 @@ export default function InvoiceShow({
                         </div>
                     </div>
                     <Link
-                        href="/invoices"
+                        href="#"
+                        onClick={() => window.history.back()}
                         className={buttonVariants({ variant: "outline" })}
                     >
                         Back

@@ -97,7 +97,7 @@ class BoothsController extends Controller
             'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 
-        return redirect('/booths');
+        return redirect()->back()->with('success', 'Booth updated successfully');
     }
 
     public function destroy(Booths $booth)

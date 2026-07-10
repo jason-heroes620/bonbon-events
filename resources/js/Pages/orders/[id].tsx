@@ -1,5 +1,5 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -87,7 +87,8 @@ export default function OrderShow({
                         </div>
                     </div>
                     <Link
-                        href="/orders"
+                        href="#"
+                        onClick={() => window.history.back()}
                         className={buttonVariants({ variant: "outline" })}
                     >
                         Back

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Booth, BoothType } from "@/types";
 import type { FormEvent } from "react";
+import { toast } from "sonner";
 
 type BoothFormData = {
     booth_type_id: string;
@@ -49,7 +50,14 @@ export default function BoothForm({
             return;
         }
 
-        form.put(submitUrl);
+        form.put(submitUrl, {
+            onSuccess: () => {
+                toast.success("Booth updated successfully");
+            },
+            onError: () => {
+                toast.error("Failed to update booth");
+            },
+        });
     };
 
     return (
@@ -146,7 +154,7 @@ export default function BoothForm({
                 <Button
                     variant="outline"
                     type="button"
-                    onClick={() => router.visit(cancelUrl)}
+                    onClick={() => window.history.back()}
                 >
                     Cancel
                 </Button>
