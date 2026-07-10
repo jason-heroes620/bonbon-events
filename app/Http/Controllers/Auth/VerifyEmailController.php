@@ -46,7 +46,7 @@ class VerifyEmailController extends Controller
                 return redirect('/')->with('status', 'Email verified. Please log in.');
             }
 
-            return redirect()->route('login')->with('status', 'Email verified. Please log in.');
+            return redirect()->route('login')->with('status', 'Email verified. We will notify you once your account is activated.');
         }
 
         $defaultRedirect = route('dashboard.index', absolute: false);

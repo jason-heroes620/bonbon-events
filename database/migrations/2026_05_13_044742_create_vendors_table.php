@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('vendor_bank_account_no')->nullable();
             $table->string('vendor_bank_account_name')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->enum('vendor_status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamps();
         });
     }

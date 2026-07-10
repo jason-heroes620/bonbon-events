@@ -1,10 +1,18 @@
 import GuestLayout from "@/Layouts/GuestLayout";
 import { Head } from "@inertiajs/react";
+import { useEffect, useState } from "react";
+
+type LayoutImage = {
+    event_layout_image_id: string;
+    image_path: string;
+    sort_order: number;
+};
 
 type LayoutEvent = {
     event_id: string;
     event_name: string;
-    event_booth_layout: string | null;
+    primary_layout_image: string | null;
+    event_layout_images: LayoutImage[];
 };
 
 type BoothRow = {
@@ -26,7 +34,15 @@ type LayoutOverviewProps = {
 };
 
 export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
-    const layoutUrl = event.event_booth_layout ?? "";
+    const [selectedLayoutUrl, setSelectedLayoutUrl] = useState<string>(
+        event.primary_layout_image ?? event.event_layout_images[0]?.image_path ?? "",
+    );
+
+    useEffect(() => {
+        setSelectedLayoutUrl(
+            event.primary_layout_image ?? event.event_layout_images[0]?.image_path ?? "",
+        );
+    }, [event.event_layout_images, event.primary_layout_image]);
 
     return (
         <GuestLayout className="container mx-auto max-w-5xl">
@@ -46,11 +62,11 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                     <div className="rounded-lg border bg-white p-4">
                         <div className="flex items-center justify-between gap-2">
                             <div className="text-sm font-medium">
-                                Booth Layout Image
+                                Booth Layout Images
                             </div>
-                            {layoutUrl ? (
+                            {selectedLayoutUrl ? (
                                 <a
-                                    href={layoutUrl}
+                                    href={selectedLayoutUrl}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="text-sm text-blue-600 hover:underline"
@@ -61,15 +77,40 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                         </div>
 
                         <div className="mt-3">
-                            {layoutUrl ? (
-                                <img
-                                    src={layoutUrl}
-                                    alt={`${event.event_name} booth layout`}
-                                    className="w-full rounded border object-contain"
-                                />
+                            {selectedLayoutUrl ? (
+                                <div className="space-y-3">
+                                    <img
+                                        src={selectedLayoutUrl}
+                                        alt={`${event.event_name} booth layout`}
+                                        className="w-full rounded border object-contain"
+                                    />
+
+                                    {event.event_layout_images.length > 1 ? (
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            {event.event_layout_images.map((image) => (
+                                                <button
+                                                    key={image.event_layout_image_id}
+                                                    type="button"
+                                                    className="overflow-hidden rounded border"
+                                                    onClick={() =>
+                                                        setSelectedLayoutUrl(
+                                                            image.image_path,
+                                                        )
+                                                    }
+                                                >
+                                                    <img
+                                                        src={image.image_path}
+                                                        alt="Booth layout thumbnail"
+                                                        className="h-24 w-full object-cover"
+                                                    />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                </div>
                             ) : (
                                 <div className="text-sm text-muted-foreground">
-                                    No booth layout image uploaded for this
+                                    No booth layout images uploaded for this
                                     event.
                                 </div>
                             )}

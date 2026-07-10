@@ -79,13 +79,14 @@ class PaymentsController extends Controller
         }
 
         $raw = $merchantKey . $merchantCode . $refNo . str_replace([".", ','], '', $amount) . $currency . 'Events';
-        Log::info('IPAY88 Raw Signature: ' . $raw);
+
         return hash_hmac('sha512', $raw, $merchantKey);
     }
 
     public function show(Request $request, string $applicationCode): Response
     {
         $application = Applications::query()
+            ->leftJoin('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
             ->where('application_code', $applicationCode)
             ->first();
 
@@ -176,7 +177,7 @@ class PaymentsController extends Controller
             ->whereIn('event_booths.event_id', $applicationEvents->pluck('event_id')->unique()->values()->all(), 'and', false)
             ->where('event_booths.is_active', true)
             ->orderBy('booth_types.booth_type_name')
-            ->orderBy('booths.booth_name')
+            ->orderByRaw('LENGTH(booths.booth_name) ASC, booths.booth_name ASC')
             ->get([
                 'event_booths.event_booth_id',
                 'event_booths.event_id',
@@ -232,6 +233,7 @@ class PaymentsController extends Controller
                 'application_id',
                 'application_code',
                 'application_status',
+                'vendor_name',
             ]),
             'order' => $order,
             'invoice' => $invoice,

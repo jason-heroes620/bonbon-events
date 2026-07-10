@@ -6,6 +6,7 @@ use App\Models\Applications;
 use App\Models\EventBooths;
 use App\Models\Events;
 use App\Models\Payments;
+use App\Models\Vendors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -15,8 +16,8 @@ class DashboardController extends Controller
     //
     public function index(Request $request)
     {
-        $pendingApplicationsCount = Applications::query()
-            ->where('application_status', 'pending')
+        $pendingVendorsCount = Vendors::query()
+            ->where('vendor_status', 'pending')
             ->count();
 
         $upcomingEvents = Events::query()
@@ -75,7 +76,7 @@ class DashboardController extends Controller
             ->sum('payment_amount');
 
         return Inertia::render('Dashboard', [
-            'pendingApplicationsCount' => $pendingApplicationsCount,
+            'pendingVendorsCount' => $pendingVendorsCount,
             'upcomingEvents' => $upcomingEventsWithBooths,
             'currentMonthRevenue' => $currentMonthRevenue,
             'currentMonthLabel' => now()->format('F Y'),

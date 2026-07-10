@@ -9,7 +9,12 @@ type EventOption = {
     event_id: string;
     event_name: string;
     event_start_date: string;
-    event_booth_layout: string | null;
+    primary_layout_image: string | null;
+    event_layout_images: {
+        event_layout_image_id: string;
+        image_path: string;
+        sort_order: number;
+    }[];
 };
 
 type BoothRow = {
@@ -47,7 +52,10 @@ export default function EventSummary({
         return events.find((e) => e.event_id === eventId) ?? null;
     }, [events, eventId]);
 
-    const boothLayoutUrl = selectedEvent?.event_booth_layout ?? "";
+    const boothLayoutUrl =
+        selectedEvent?.primary_layout_image ??
+        selectedEvent?.event_layout_images?.[0]?.image_path ??
+        "";
 
     const stats = useMemo(() => {
         const allBooths = groups.flatMap((g) => g.booths);
@@ -134,19 +142,53 @@ export default function EventSummary({
                     <div className="flex flex-row items-center gap-1">
                         <div>
                             {boothLayoutUrl ? (
-                                <div>
-                                    <a
-                                        href={boothLayoutUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sm font-semibold underline"
-                                    >
-                                        view
-                                    </a>
-                                    <span className="text-sm">
-                                        {" "}
-                                        booth layout
-                                    </span>
+                                <div className="space-y-2">
+                                    <div>
+                                        <a
+                                            href={boothLayoutUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-semibold underline"
+                                        >
+                                            view
+                                        </a>
+                                        <span className="text-sm">
+                                            {" "}
+                                            booth layout
+                                        </span>
+                                    </div>
+                                    {selectedEvent?.event_layout_images
+                                        ?.length ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedEvent.event_layout_images.map(
+                                                (image) => (
+                                                    <a
+                                                        key={
+                                                            image.event_layout_image_id
+                                                        }
+                                                        href={image.image_path}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={cn(
+                                                            "overflow-hidden rounded border",
+                                                            image.image_path ===
+                                                                boothLayoutUrl
+                                                                ? "ring-2 ring-primary"
+                                                                : "",
+                                                        )}
+                                                    >
+                                                        <img
+                                                            src={
+                                                                image.image_path
+                                                            }
+                                                            alt="Booth layout thumbnail"
+                                                            className="h-14 w-20 object-cover"
+                                                        />
+                                                    </a>
+                                                ),
+                                            )}
+                                        </div>
+                                    ) : null}
                                 </div>
                             ) : (
                                 ""

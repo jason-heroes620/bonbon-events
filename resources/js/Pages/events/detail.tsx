@@ -1,16 +1,16 @@
 import type { Event } from "@/types";
 import "../../../css/home.css";
-import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
+import { useMemo, useState } from "react";
 import axios from "axios";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast, Toaster } from "sonner";
 import DOMPurify from "dompurify";
+import PublicSiteLayout from "@/components/PublicSiteLayout";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -68,8 +68,6 @@ export default function EventDetail({
     const [carouselIndex, setCarouselIndex] = useState(0);
     const [applyOpen, setApplyOpen] = useState(false);
     const [agreeTerms, setAgreeTerms] = useState(false);
-    const [showLoginModal, setShowLoginModal] = useState(false);
-    const [showUserMenu, setShowUserMenu] = useState(false);
     const [draft, setDraft] = useState<DraftRow>({
         event_id: event.event_id,
         participants: 1,
@@ -79,31 +77,6 @@ export default function EventDetail({
     });
     const [rows, setRows] = useState<DraftRow[]>([]);
     const [submitting, setSubmitting] = useState(false);
-
-    const userMenuRef = useRef<HTMLDivElement | null>(null);
-
-    const loginForm = useForm({
-        email: "",
-        password: "",
-    });
-
-    useEffect(() => {
-        if (!showUserMenu) return;
-
-        const onMouseDown = (e: MouseEvent) => {
-            const target = e.target as Node | null;
-            if (!target) return;
-            if (!userMenuRef.current) return;
-            if (!userMenuRef.current.contains(target)) {
-                setShowUserMenu(false);
-            }
-        };
-
-        document.addEventListener("mousedown", onMouseDown);
-        return () => {
-            document.removeEventListener("mousedown", onMouseDown);
-        };
-    }, [showUserMenu]);
 
     const selectedEvent = useMemo(() => {
         return events.find((e) => e.event_id === draft.event_id) ?? null;
@@ -160,7 +133,6 @@ export default function EventDetail({
     const handleSubmit = async () => {
         if (!isVendorLoggedIn) {
             toast.error("Please log in with a vendor account to apply.");
-            setShowLoginModal(true);
             return;
         }
 
@@ -195,14 +167,15 @@ export default function EventDetail({
                 | string
                 | undefined;
 
-            toast.success(
-                applicationCode
-                    ? `Application submitted (${applicationCode}).`
-                    : "Application submitted.",
-            );
+            // toast.success(
+            //     applicationCode
+            //         ? `Application submitted (${applicationCode}).`
+            //         : "Application submitted.",
+            // );
             setApplyOpen(false);
             setRows([]);
             setAgreeTerms(false);
+            router.visit(`/payments/${applicationCode}`);
         } catch (err: any) {
             const status = err?.response?.status;
             const validationErrors = err?.response?.data?.errors as
@@ -231,44 +204,6 @@ export default function EventDetail({
         }
     };
 
-    const handleLogin = () => {
-        if (!loginForm.data.email) {
-            window.alert("Please enter your email.");
-            return;
-        }
-        if (!loginForm.data.password) {
-            window.alert("Please enter your password.");
-            return;
-        }
-
-        loginForm.post("/vendor/login", {
-            onSuccess: () => {
-                setShowLoginModal(false);
-            },
-            onError: (errors) => {
-                window.alert(errors.password ?? errors.email);
-            },
-            onFinish: () => {
-                loginForm.reset("password");
-            },
-        });
-    };
-
-    const handleLogout = () => {
-        const confirmed = window.confirm("Confirm logout?");
-        if (!confirmed) return;
-
-        router.post(
-            "/vendor/logout",
-            {},
-            {
-                onSuccess: () => {
-                    toast.success("Logout successful.");
-                },
-            },
-        );
-    };
-
     const locationName = (event as any)?.location?.location_name ?? "-";
 
     return (
@@ -276,277 +211,175 @@ export default function EventDetail({
             <Head title={event.event_name} />
             <Toaster />
 
-            <div>
-                <div className="topbar">
-                    <a className="logo" href="/">
-                        <div className="flex items-center gap-2">
-                            <div className="flex flex-row items-center gap-2">
-                                <img
-                                    src="/bonbon-logo.png"
-                                    alt=""
-                                    className="w-12 h-12"
-                                />
-                                <p className="brand-name">BonBon</p>
+            <PublicSiteLayout loginDescription="Please log in before applying to events.">
+                {({ openLoginModal }) => (
+                    <div className="mx-auto max-w-3xl p-4 space-y-4">
+                        <div className="flex flex-col space-y-6">
+                            <div>
+                                <Link
+                                    type="button"
+                                    href="/"
+                                    className={buttonVariants({
+                                        variant: "default",
+                                        size: "sm",
+                                    })}
+                                >
+                                    Back
+                                </Link>
                             </div>
-                        </div>
-                        <div>
-                            <span className="brand-name font-bold"> X </span>
-                        </div>
-                        <div className="flex flex-row items-center gap-2">
-                            <img
-                                src="/what-the-pets.png"
-                                alt=""
-                                className="w-12 h-12"
-                            />
-                            <p className="brand-name">What the Pets</p>
-                        </div>
-                    </a>
-
-                    <div className="nav">
-                        {isLoggedIn ? (
-                            <div className="flex items-center gap-4">
-                                <span>
-                                    Hello, {authUser?.name ?? "Vendor"}!
-                                </span>
-                                <div className="relative" ref={userMenuRef}>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() =>
-                                            setShowUserMenu((prev) => !prev)
-                                        }
-                                    >
-                                        Account
-                                    </Button>
-                                    {showUserMenu ? (
-                                        <div className="absolute right-0 top-full mt-2 w-48 rounded-md border bg-white shadow-md z-50">
-                                            <Link
-                                                href="/vendor/profile"
-                                                className="block w-full px-3 py-2 text-sm hover:bg-muted/50"
-                                                onClick={() =>
-                                                    setShowUserMenu(false)
-                                                }
+                            <div className="flex rounded-lg bg-white">
+                                <div className="relative h-auto w-full">
+                                    <img
+                                        src={currentImage}
+                                        alt={event.event_name}
+                                        className="h-full w-full object-cover"
+                                    />
+                                    {images.length > 1 ? (
+                                        <div className="absolute inset-0 flex items-center justify-between px-3">
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                onClick={goPrev}
                                             >
-                                                Profile
-                                            </Link>
+                                                Prev
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                onClick={goNext}
+                                            >
+                                                Next
+                                            </Button>
                                         </div>
                                     ) : null}
                                 </div>
-                                <Button type="button" onClick={handleLogout}>
-                                    Logout
-                                </Button>
                             </div>
-                        ) : (
-                            <div className="flex items-center gap-4">
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    onClick={() => setShowLoginModal(true)}
-                                >
-                                    Log in
-                                </button>
-                                <Link href="/vendor/register" className="cta">
-                                    Join for free
-                                </Link>
-                            </div>
-                        )}
-                    </div>
-                </div>
 
-                <div className="mx-auto max-w-3xl p-4 space-y-4">
-                    <div className="flex flex-col space-y-6">
-                        <div>
-                            <Link
+                            <div className="flex flex-col gap-4 md:grid md:grid-cols-3">
+                                <div className="gap-4 rounded-lg border bg-white p-4 md:col-span-2">
+                                    <div className="flex flex-col md:grid md:grid-cols-2">
+                                        <div className="col-span-2 items-start justify-between gap-3">
+                                            <span className="text-xl font-semibold">
+                                                {event.event_name}
+                                            </span>
+                                        </div>
+
+                                        <div>
+                                            <span className="font-medium">
+                                                Date:
+                                            </span>{" "}
+                                            {event.event_date}
+                                        </div>
+                                        <div>
+                                            <span className="font-medium">
+                                                Time:
+                                            </span>{" "}
+                                            {event.event_time}
+                                        </div>
+                                        <div>
+                                            <span className="font-medium">
+                                                Location:
+                                            </span>{" "}
+                                            {locationName}
+                                        </div>
+                                        <div>
+                                            <span className="font-medium">
+                                                Venue:
+                                            </span>{" "}
+                                            {event.venue ?? "-"}
+                                        </div>
+
+                                        <div className="flex gap-2 pt-2">
+                                            <a
+                                                href={`/events/${event.event_id}/layout-overview`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className={buttonVariants({
+                                                    variant: "default",
+                                                    size: "sm",
+                                                })}
+                                            >
+                                                View layout
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col space-y-3 rounded-lg border bg-white p-4 md:col-span-1">
+                                    <div className="text-sm text-muted-foreground">
+                                        Booths
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span>Total</span>
+                                            <span className="font-semibold">
+                                                {boothStats.totalBooths}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span>Available</span>
+                                            <span className="font-semibold">
+                                                {boothStats.unoccupiedBooths}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span>Occupied</span>
+                                            <span className="font-semibold">
+                                                {boothStats.occupiedBooths}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex overflow-hidden rounded-lg border bg-white">
+                            <div className="space-y-3 p-4">
+                                <div>
+                                    <span className="text-lg font-medium">
+                                        Description
+                                    </span>
+                                </div>
+                                {sanitizedDescriptionHtml !== "" ? (
+                                    <div
+                                        className="rich-text text-sm"
+                                        dangerouslySetInnerHTML={{
+                                            __html: sanitizedDescriptionHtml,
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="text-sm text-muted-foreground">
+                                        -
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex justify-end">
+                            <Button
                                 type="button"
-                                href="/"
-                                className={buttonVariants({
-                                    variant: "default",
-                                    size: "sm",
-                                })}
+                                onClick={() => {
+                                    if (!isLoggedIn) {
+                                        openLoginModal();
+                                        return;
+                                    }
+                                    setApplyOpen(true);
+                                }}
                             >
-                                Back
-                            </Link>
-                        </div>
-                        <div className="flex rounded-lg bg-white">
-                            <div className="relative h-auto w-full">
-                                <img
-                                    src={currentImage}
-                                    alt={event.event_name}
-                                    className="h-full w-full object-cover"
-                                />
-                                {images.length > 1 ? (
-                                    <div className="absolute inset-0 flex items-center justify-between px-3">
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            onClick={goPrev}
-                                        >
-                                            Prev
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            onClick={goNext}
-                                        >
-                                            Next
-                                        </Button>
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
-                            <div className="gap-4 border rounded-lg bg-white p-4 md:col-span-2">
-                                <div className="flex flex-col md:grid md:grid-cols-2">
-                                    <div className="col-span-2 items-start justify-between gap-3">
-                                        <span className="text-xl font-semibold">
-                                            {event.event_name}
-                                        </span>
-                                    </div>
-
-                                    <div>
-                                        <span className="font-medium">
-                                            Date:
-                                        </span>{" "}
-                                        {event.event_date}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">
-                                            Time:
-                                        </span>{" "}
-                                        {event.event_time}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">
-                                            Location:
-                                        </span>{" "}
-                                        {locationName}
-                                    </div>
-                                    <div>
-                                        <span className="font-medium">
-                                            Venue:
-                                        </span>{" "}
-                                        {event.venue ?? "-"}
-                                    </div>
-
-                                    <div className="flex gap-2 pt-2">
-                                        <a
-                                            href={`/events/${event.event_id}/layout-overview`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className={buttonVariants({
-                                                variant: "default",
-                                                size: "sm",
-                                            })}
-                                        >
-                                            View layout
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col rounded-lg border bg-white p-4 space-y-3 md:col-span-1">
-                                <div className="text-sm text-muted-foreground">
-                                    Booths
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span>Total</span>
-                                        <span className="font-semibold">
-                                            {boothStats.totalBooths}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span>Available</span>
-                                        <span className="font-semibold">
-                                            {boothStats.unoccupiedBooths}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span>Occupied</span>
-                                        <span className="font-semibold">
-                                            {boothStats.occupiedBooths}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                                Apply
+                            </Button>
                         </div>
                     </div>
-
-                    <div className="mt-4 flex overflow-hidden rounded-lg border bg-white">
-                        <div className="p-4 space-y-3">
-                            <div>
-                                <span className="text-lg font-medium">
-                                    Description
-                                </span>
-                            </div>
-                            {sanitizedDescriptionHtml !== "" ? (
-                                <div
-                                    className="rich-text text-sm"
-                                    dangerouslySetInnerHTML={{
-                                        __html: sanitizedDescriptionHtml,
-                                    }}
-                                />
-                            ) : (
-                                <div className="text-sm text-muted-foreground">
-                                    -
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end mt-4">
-                        <Button
-                            type="button"
-                            onClick={() => {
-                                if (!isLoggedIn) {
-                                    setShowLoginModal(true);
-                                    return;
-                                }
-                                setApplyOpen(true);
-                            }}
-                        >
-                            Apply
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="footer">
-                    <div className="flex flex-col justify-start gap-4">
-                        <div className="flex gap-2">
-                            <a href="" className="text-white font-medium">
-                                Terms of Service
-                            </a>
-                        </div>
-                        <p className="text-white text-sm">
-                            © {new Date().getFullYear()} BonBon × What the Pets.
-                            All rights reserved.
-                        </p>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <span className="text-white font-medium text-sm">
-                            Contact:
-                        </span>
-                        <span className="text-sm text-white">
-                            Accessible Experiences Sdn Bhd (1496618­A)
-                        </span>
-                        <span className="text-white text-sm font-medium">
-                            hello@bonbon.com.my
-                        </span>
-                        <span className="text-white text-sm font-medium">
-                            012-7456 750
-                        </span>
-                    </div>
-                </div>
-            </div>
+                )}
+            </PublicSiteLayout>
 
             <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
                 <DialogContent className="sm:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Apply for Events</DialogTitle>
-                        <DialogDescription>
+                        <div className="text-sm text-muted-foreground">
                             Add one or more events into the table, then apply.
-                        </DialogDescription>
+                        </div>
                     </DialogHeader>
 
                     <div className="grid gap-4">
@@ -773,84 +606,6 @@ export default function EventDetail({
                             disabled={!canSubmit}
                         >
                             {submitting ? "Submitting..." : "Apply"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
-                <DialogContent className="flex flex-col sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Login</DialogTitle>
-                        <DialogDescription>
-                            Please log in before applying to events.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-3">
-                        <div className="space-y-1">
-                            <label
-                                htmlFor="Email"
-                                className="text-sm font-medium"
-                            >
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                id="Email"
-                                className="w-full rounded-md border border-gray-300 p-2"
-                                value={loginForm.data.email}
-                                onChange={(e) =>
-                                    loginForm.setData("email", e.target.value)
-                                }
-                            />
-                            {loginForm.errors.email ? (
-                                <p className="text-sm text-red-600">
-                                    {loginForm.errors.email}
-                                </p>
-                            ) : null}
-                        </div>
-                        <div className="space-y-1">
-                            <label
-                                htmlFor="Password"
-                                className="text-sm font-medium"
-                            >
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                id="Password"
-                                className="w-full rounded-md border border-gray-300 p-2"
-                                value={loginForm.data.password}
-                                onChange={(e) =>
-                                    loginForm.setData(
-                                        "password",
-                                        e.target.value,
-                                    )
-                                }
-                            />
-                            {loginForm.errors.password ? (
-                                <p className="text-sm text-red-600">
-                                    {loginForm.errors.password}
-                                </p>
-                            ) : null}
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setShowLoginModal(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="button"
-                            onClick={handleLogin}
-                            disabled={loginForm.processing}
-                        >
-                            Login
                         </Button>
                     </DialogFooter>
                 </DialogContent>

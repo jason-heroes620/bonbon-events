@@ -268,6 +268,7 @@ class PaymentController extends Controller
                 'item_description',
             ]);
         $application = Applications::query()
+            ->leftJoin('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
             ->where('application_id', $order->application_id)
             ->first();
 
@@ -277,6 +278,7 @@ class PaymentController extends Controller
                 'application_id',
                 'application_code',
                 'application_status',
+                'vendor_name',
             ]),
             'order' => $order,
             'invoice' => $invoice,

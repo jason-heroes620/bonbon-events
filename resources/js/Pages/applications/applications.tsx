@@ -193,9 +193,6 @@ export default function ApplicationsIndex({
                                         Events
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
-                                        Status
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-medium">
                                         Payment Status
                                     </th>
                                     <th className="px-4 py-3 text-right font-medium">
@@ -237,25 +234,7 @@ export default function ApplicationsIndex({
                                                     .filter(Boolean)
                                                     .join(", ")}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span
-                                                    className={cn(
-                                                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                                        application.application_status ===
-                                                            "approved"
-                                                            ? "bg-emerald-100 text-emerald-800"
-                                                            : application.application_status ===
-                                                                "rejected"
-                                                              ? "bg-red-100 text-red-800"
-                                                              : application.application_status ===
-                                                                  "cancelled"
-                                                                ? "bg-gray-100 text-gray-800"
-                                                                : "bg-amber-100 text-amber-800",
-                                                    )}
-                                                >
-                                                    {application.application_status.toUpperCase()}
-                                                </span>
-                                            </td>
+
                                             <td className="px-4 py-3">
                                                 {application.order?.is_paid ===
                                                 true ? (

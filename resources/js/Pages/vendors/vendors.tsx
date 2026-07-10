@@ -154,6 +154,9 @@ export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
                                         User
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
+                                        Active
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
                                         Status
                                     </th>
                                     <th className="px-4 py-3 text-right font-medium">
@@ -200,6 +203,22 @@ export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
                                                     {vendor.is_active
                                                         ? "Active"
                                                         : "Inactive"}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span
+                                                    className={cn(
+                                                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                                        vendor.vendor_status ===
+                                                            "approved"
+                                                            ? "bg-emerald-100 text-emerald-800"
+                                                            : "bg-gray-100 text-gray-800",
+                                                    )}
+                                                >
+                                                    {vendor.vendor_status ===
+                                                    "approved"
+                                                        ? "Approved"
+                                                        : "Pending"}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-right">

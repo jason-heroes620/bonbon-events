@@ -40,7 +40,6 @@ export default function CreateEvent({
                         boothTypes={boothTypes}
                         booths={booths}
                         submitUrl="/events"
-                        method="post"
                         submitLabel="Create"
                         cancelUrl="/events"
                     />

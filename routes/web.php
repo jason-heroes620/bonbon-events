@@ -149,6 +149,8 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::get('/vendors/{vendor}', [VendorsController::class, 'edit'])->name('vendors.edit');
     Route::put('/vendors/{vendor}', [VendorsController::class, 'update'])->name('vendors.update');
     Route::delete('/vendors/{vendor}', [VendorsController::class, 'destroy'])->name('vendors.destroy');
+    Route::post('/vendors/{vendor}/approve', [VendorsController::class, 'approve'])->name('vendors.approve');
+    Route::post('/vendors/{vendor}/reject', [VendorsController::class, 'reject'])->name('vendors.reject');
 
     Route::get('/deposits', [DepositController::class, 'index'])->name('deposits.index');
     Route::get('/deposits/create', [DepositController::class, 'create'])->name('deposits.create');
@@ -221,5 +223,8 @@ Route::post('/events/{event}/participate', [ApplicationsController::class, 'part
     ->name('events.participate');
 
 Route::get('/events-list', [EventsController::class, 'eventsList'])->name('events-list.index');
+Route::get('/terms-of-service', function () {
+    return Inertia::render('TermsOfService');
+})->name('terms-of-service.index');
 
 require __DIR__ . '/auth.php';

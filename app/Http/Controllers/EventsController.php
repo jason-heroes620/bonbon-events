@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Deposits;
 use App\Models\EventDeposits;
 use App\Models\EventBooths;
+use App\Models\EventLayoutImage;
 use App\Models\BoothTypes;
 use App\Models\Booths;
 use App\Models\Events;
 use App\Models\Locations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,8 +50,21 @@ class EventsController extends Controller
         $selectedEventId = $request->string('event_id')->toString();
 
         $events = Events::query()
+            ->with(['layoutImages'])
             ->orderByDesc('event_start_date')
-            ->get(['event_id', 'event_name', 'event_start_date', 'event_booth_layout']);
+            ->get(['event_id', 'event_name', 'event_start_date'])
+            ->map(function (Events $event) {
+                $layoutImages = $this->serializeLayoutImages($event->layoutImages);
+
+                return [
+                    'event_id' => $event->event_id,
+                    'event_name' => $event->event_name,
+                    'event_start_date' => $event->event_start_date,
+                    'primary_layout_image' => $layoutImages[0]['image_path'] ?? null,
+                    'event_layout_images' => $layoutImages,
+                ];
+            })
+            ->values();
         $groups = [];
         if ($selectedEventId !== '') {
             $latestOrders = DB::table('orders')
@@ -136,6 +151,8 @@ class EventsController extends Controller
 
     public function layoutOverview(Events $event): Response
     {
+        $event->load(['layoutImages']);
+
         $latestOrders = DB::table('orders')
             ->where('orders.is_active', true)
             ->select([
@@ -207,7 +224,12 @@ class EventsController extends Controller
             ->values();
 
         return Inertia::render('events/layout-overview', [
-            'event' => $event->only(['event_id', 'event_name', 'event_booth_layout']),
+            'event' => [
+                'event_id' => $event->event_id,
+                'event_name' => $event->event_name,
+                'primary_layout_image' => $event->layoutImages->first()->image_path ?? null,
+                'event_layout_images' => $this->serializeLayoutImages($event->layoutImages),
+            ],
             'groups' => $groups,
         ]);
     }
@@ -303,7 +325,8 @@ class EventsController extends Controller
             'location_id' => ['required', 'uuid', 'exists:locations,location_id'],
             'venue' => ['nullable', 'string', 'max:255'],
             'event_image' => ['nullable', 'image', 'max:5120'],
-            'event_booth_layout' => ['nullable', 'image', 'max:5120'],
+            'event_booth_layouts' => ['nullable', 'array'],
+            'event_booth_layouts.*' => ['image', 'max:5120'],
             'event_start_date' => ['required', 'date'],
             'event_end_date' => ['required', 'date', 'after_or_equal:event_start_date'],
             'require_deposit' => ['nullable', 'boolean'],
@@ -327,11 +350,11 @@ class EventsController extends Controller
             'is_active' => (bool) ($validated['is_active'] ?? true),
         ]);
 
-        if ($request->hasFile('event_booth_layout')) {
-            $path = $request->file('event_booth_layout')->storePublicly('event_booth_layouts', 'public');
-            $event->update([
-                'event_booth_layout' => "/storage/{$path}",
-            ]);
+        if ($request->hasFile('event_booth_layouts')) {
+            $this->storeEventLayoutImages(
+                $event,
+                $request->file('event_booth_layouts'),
+            );
         }
 
         if ($request->hasFile('event_image')) {
@@ -366,6 +389,8 @@ class EventsController extends Controller
 
     public function edit(Events $event): Response
     {
+        $event->load(['layoutImages']);
+
         $locations = Locations::query()
             ->orderBy('location_name', 'asc')
             ->get(['location_id', 'location_name']);
@@ -396,6 +421,7 @@ class EventsController extends Controller
             ->get(['booth_id', 'booth_price']);
 
         $event->booths = $eventBooths;
+        $event->layout_images = $this->serializeLayoutImages($event->layoutImages);
 
         return Inertia::render('events/[id]', [
             'event' => $event,
@@ -416,7 +442,10 @@ class EventsController extends Controller
             'location_id' => ['required', 'uuid', 'exists:locations,location_id'],
             'venue' => ['nullable', 'string', 'max:255'],
             'event_image' => ['nullable', 'image', 'max:5120'],
-            'event_booth_layout' => ['nullable', 'image', 'max:5120'],
+            'event_booth_layouts' => ['nullable', 'array'],
+            'event_booth_layouts.*' => ['image', 'max:5120'],
+            'removed_layout_image_ids' => ['nullable', 'array'],
+            'removed_layout_image_ids.*' => ['uuid'],
             'event_start_date' => ['required', 'date'],
             'event_end_date' => ['required', 'date', 'after_or_equal:event_start_date'],
             'require_deposit' => ['nullable', 'boolean'],
@@ -440,11 +469,16 @@ class EventsController extends Controller
             'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 
-        if ($request->hasFile('event_booth_layout')) {
-            $path = $request->file('event_booth_layout')->storePublicly('event_booth_layouts', 'public');
-            $event->update([
-                'event_booth_layout' => "/storage/{$path}",
-            ]);
+        $removedLayoutImageIds = $validated['removed_layout_image_ids'] ?? [];
+        if (!empty($removedLayoutImageIds)) {
+            $this->removeEventLayoutImages($event, $removedLayoutImageIds);
+        }
+
+        if ($request->hasFile('event_booth_layouts')) {
+            $this->storeEventLayoutImages(
+                $event,
+                $request->file('event_booth_layouts'),
+            );
         }
 
         if ($request->hasFile('event_image')) {
@@ -509,5 +543,65 @@ class EventsController extends Controller
             ->get(['event_id', 'event_name', 'event_date', 'event_time', 'venue', 'event_image', 'event_start_date']);
 
         return response()->json($events);
+    }
+
+    private function serializeLayoutImages(iterable $images): array
+    {
+        return collect($images)
+            ->map(function ($image) {
+                return [
+                    'event_layout_image_id' => $image->event_layout_image_id,
+                    'image_path' => $image->image_path,
+                    'sort_order' => (int) $image->sort_order,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function storeEventLayoutImages(Events $event, array $files): void
+    {
+        $nextSortOrder = (int) (
+            EventLayoutImage::query()
+            ->where('event_id', $event->event_id)
+            ->max('sort_order') ?? -1
+        ) + 1;
+
+        foreach ($files as $index => $file) {
+            $path = $file->storePublicly('event_booth_layouts', 'public');
+
+            EventLayoutImage::create([
+                'event_id' => $event->event_id,
+                'image_path' => "/storage/{$path}",
+                'sort_order' => $nextSortOrder + $index,
+                'is_active' => true,
+            ]);
+        }
+    }
+
+    private function removeEventLayoutImages(Events $event, array $imageIds): void
+    {
+        $images = EventLayoutImage::query()
+            ->where('event_id', $event->event_id)
+            ->whereIn('event_layout_image_id', $imageIds)
+            ->get();
+
+        foreach ($images as $image) {
+            $storagePath = $this->storagePathFromPublicUrl($image->image_path);
+            if ($storagePath !== null) {
+                Storage::disk('public')->delete($storagePath);
+            }
+
+            $image->delete();
+        }
+    }
+
+    private function storagePathFromPublicUrl(?string $url): ?string
+    {
+        if (!$url || !str_starts_with($url, '/storage/')) {
+            return null;
+        }
+
+        return ltrim(substr($url, strlen('/storage/')), '/');
     }
 }

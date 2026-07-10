@@ -52,6 +52,12 @@ export type EventBooth = {
     booth_price: number | string;
 };
 
+export type EventLayoutImage = {
+    event_layout_image_id: string;
+    image_path: string;
+    sort_order: number;
+};
+
 export type Event = {
     event_id: string;
     event_name: string;
@@ -62,6 +68,9 @@ export type Event = {
     venue: string | null;
     event_booth_layout?: string | null;
     event_image?: string | null;
+    primary_layout_image?: string | null;
+    event_layout_images?: EventLayoutImage[];
+    layout_images?: EventLayoutImage[];
     event_start_date: string;
     event_end_date: string;
     require_deposit: boolean;
@@ -149,6 +158,7 @@ export type Vendor = {
     vendor_bank_account_name?: string;
     is_active: boolean;
     user?: Pick<User, "user_id" | "name" | "email">;
+    vendor_status: string;
     created_at?: string;
     updated_at?: string;
 };

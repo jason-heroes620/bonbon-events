@@ -14,7 +14,7 @@ type UpcomingEvent = {
 };
 
 type DashboardProps = {
-    pendingApplicationsCount: number;
+    pendingVendorsCount: number;
     upcomingEvents: UpcomingEvent[];
     currentMonthRevenue: number | string;
     currentMonthLabel: string;
@@ -24,7 +24,7 @@ type DashboardProps = {
 export default function Dashboard() {
     const page = usePage();
     const {
-        pendingApplicationsCount,
+        pendingVendorsCount,
         upcomingEvents,
         currentMonthRevenue,
         currentMonthLabel,
@@ -56,20 +56,20 @@ export default function Dashboard() {
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="rounded-lg border bg-white p-4">
                             <div className="text-sm text-muted-foreground">
-                                Pending Applications
+                                Pending Vendors
                             </div>
                             <div className="mt-1 text-3xl font-semibold">
-                                {pendingApplicationsCount}
+                                {pendingVendorsCount}
                             </div>
                             <div className="mt-3">
                                 <Link
-                                    href="/applications"
+                                    href="/vendors"
                                     className={buttonVariants({
                                         variant: "outline",
                                         size: "sm",
                                     })}
                                 >
-                                    View applications
+                                    View vendors
                                 </Link>
                             </div>
                         </div>
@@ -155,7 +155,7 @@ export default function Dashboard() {
                                                     {e.event_start_date
                                                         ? formatDate(
                                                               e.event_start_date,
-                                                              "yyyy-MM-dd",
+                                                              "d MMM, y",
                                                           )
                                                         : "-"}
                                                 </td>

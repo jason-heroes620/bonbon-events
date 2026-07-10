@@ -11,9 +11,9 @@ import type {
     BoothType,
     Booth,
     EventBooth,
+    EventLayoutImage,
 } from "@/types";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { toast } from "sonner";
 
@@ -25,7 +25,8 @@ type EventFormData = {
     location_id: string;
     venue: string;
     event_image: File | null;
-    event_booth_layout: File | null;
+    event_booth_layouts: File[];
+    removed_layout_image_ids: string[];
     event_start_date: string;
     event_end_date: string;
     require_deposit: boolean;
@@ -44,13 +45,9 @@ type EventFormProps = {
     boothTypes: Pick<BoothType, "booth_type_id" | "booth_type_name">[];
     booths: Pick<Booth, "booth_id" | "booth_type_id" | "booth_name">[];
     submitUrl: string;
-    method: "post";
     submitLabel: string;
     cancelUrl: string;
 };
-
-const textareaClassName =
-    "w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
 
 const selectClassName =
     "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
@@ -62,7 +59,6 @@ export default function EventForm({
     boothTypes,
     booths,
     submitUrl,
-    method,
     submitLabel,
     cancelUrl,
 }: EventFormProps) {
@@ -74,7 +70,8 @@ export default function EventForm({
         location_id: event?.location_id ?? "",
         venue: event?.venue ?? "",
         event_image: null,
-        event_booth_layout: null,
+        event_booth_layouts: [],
+        removed_layout_image_ids: [],
         event_start_date: event?.event_start_date ?? "",
         event_end_date: event?.event_end_date ?? "",
         require_deposit: event?.require_deposit ?? false,
@@ -165,19 +162,25 @@ export default function EventForm({
         setImagePreviewUrl(initialImageUrl);
     }, [form.data.event_image, initialImageUrl]);
 
-    const initialLayoutUrl = event?.event_booth_layout ?? null;
-    const [layoutPreviewUrl, setLayoutPreviewUrl] = useState<string | null>(
-        initialLayoutUrl,
+    const initialLayoutImages = useMemo<EventLayoutImage[]>(() => {
+        return event?.layout_images ?? event?.event_layout_images ?? [];
+    }, [event?.event_layout_images, event?.layout_images]);
+    const [existingLayoutImages, setExistingLayoutImages] =
+        useState<EventLayoutImage[]>(initialLayoutImages);
+    const [newLayoutPreviewUrls, setNewLayoutPreviewUrls] = useState<string[]>(
+        [],
     );
 
     useEffect(() => {
-        if (form.data.event_booth_layout instanceof File) {
-            const url = URL.createObjectURL(form.data.event_booth_layout);
-            setLayoutPreviewUrl(url);
-            return () => URL.revokeObjectURL(url);
-        }
-        setLayoutPreviewUrl(initialLayoutUrl);
-    }, [form.data.event_booth_layout, initialLayoutUrl]);
+        const urls = form.data.event_booth_layouts.map((file) =>
+            URL.createObjectURL(file),
+        );
+        setNewLayoutPreviewUrls(urls);
+
+        return () => {
+            urls.forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [form.data.event_booth_layouts]);
 
     const [selectedBoothType, setSelectedBoothType] = useState<string>("");
     const [selectedBoothIds, setSelectedBoothIds] = useState<string[]>([]);
@@ -272,7 +275,7 @@ export default function EventForm({
         return form.data.booths.slice(start, end);
     }, [boothsPage, form.data.booths]);
 
-    const submit = (e: FormEvent) => {
+    const submit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         form.post(submitUrl, {
@@ -284,6 +287,35 @@ export default function EventForm({
                 toast.error("Failed to update event.");
             },
         });
+    };
+
+    const handleLayoutFilesChange = (files: FileList | null) => {
+        if (!files || files.length === 0) return;
+
+        form.setData("event_booth_layouts", [
+            ...form.data.event_booth_layouts,
+            ...Array.from(files),
+        ]);
+    };
+
+    const handleRemoveExistingLayoutImage = (imageId: string) => {
+        setExistingLayoutImages((prev) =>
+            prev.filter((image) => image.event_layout_image_id !== imageId),
+        );
+
+        if (!form.data.removed_layout_image_ids.includes(imageId)) {
+            form.setData("removed_layout_image_ids", [
+                ...form.data.removed_layout_image_ids,
+                imageId,
+            ]);
+        }
+    };
+
+    const handleRemoveNewLayoutImage = (index: number) => {
+        form.setData(
+            "event_booth_layouts",
+            form.data.event_booth_layouts.filter((_, i) => i !== index),
+        );
     };
 
     return (
@@ -512,33 +544,95 @@ export default function EventForm({
 
                 <div className="space-y-2 md:col-span-2">
                     <label
-                        htmlFor="event_booth_layout"
+                        htmlFor="event_booth_layouts"
                         className="text-sm font-medium"
                     >
-                        Booth Layout Image
+                        Booth Layout Images
                     </label>
                     <Input
-                        id="event_booth_layout"
+                        id="event_booth_layouts"
                         type="file"
                         accept="image/*"
+                        multiple
                         onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            form.setData("event_booth_layout", file);
+                            handleLayoutFilesChange(e.target.files);
+                            e.currentTarget.value = "";
                         }}
-                        aria-invalid={Boolean(form.errors.event_booth_layout)}
+                        aria-invalid={Boolean(form.errors.event_booth_layouts)}
                     />
-                    {form.errors.event_booth_layout ? (
+                    {form.errors.event_booth_layouts ? (
                         <p className="text-sm text-red-600">
-                            {form.errors.event_booth_layout}
+                            {form.errors.event_booth_layouts}
                         </p>
                     ) : null}
-                    {layoutPreviewUrl ? (
-                        <div className="rounded-md border bg-muted/20 p-2">
-                            <img
-                                src={layoutPreviewUrl}
-                                alt="Booth layout preview"
-                                className="max-h-80 w-full rounded object-contain"
-                            />
+                    {existingLayoutImages.length > 0 ? (
+                        <div className="space-y-2">
+                            <div className="text-sm font-medium">
+                                Existing Layout Images
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                {existingLayoutImages.map((image) => (
+                                    <div
+                                        key={image.event_layout_image_id}
+                                        className="rounded-md border bg-muted/20 p-2"
+                                    >
+                                        <img
+                                            src={image.image_path}
+                                            alt="Booth layout preview"
+                                            className="h-36 w-full rounded object-cover"
+                                        />
+                                        <div className="mt-2 flex justify-end">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleRemoveExistingLayoutImage(
+                                                        image.event_layout_image_id,
+                                                    )
+                                                }
+                                            >
+                                                Remove
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+                    {newLayoutPreviewUrls.length > 0 ? (
+                        <div className="space-y-2">
+                            <div className="text-sm font-medium">
+                                New Layout Images
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                {newLayoutPreviewUrls.map((url, index) => (
+                                    <div
+                                        key={`${url}-${index}`}
+                                        className="rounded-md border bg-muted/20 p-2"
+                                    >
+                                        <img
+                                            src={url}
+                                            alt={`Booth layout preview ${index + 1}`}
+                                            className="h-36 w-full rounded object-cover"
+                                        />
+                                        <div className="mt-2 flex justify-end">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleRemoveNewLayoutImage(
+                                                        index,
+                                                    )
+                                                }
+                                            >
+                                                Remove
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     ) : null}
                 </div>

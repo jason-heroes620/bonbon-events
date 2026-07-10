@@ -215,7 +215,7 @@ class ApplicationsController extends Controller
                     'no_of_booths' => $eventData['no_of_booths'],
                     'requirements' => $eventData['requirements'] ?? null,
                     'plug' => (bool) ($eventData['plug'] ?? false),
-                    'application_status' => 'pending',
+                    'application_status' => 'approved',
                 ]);
             }
         });
@@ -414,7 +414,7 @@ class ApplicationsController extends Controller
             ->whereIn('event_booths.event_id', $applicationEvents->pluck('event_id')->unique()->values()->all(), 'and', false)
             ->where('event_booths.is_active', true)
             ->orderBy('booth_types.booth_type_name')
-            ->orderBy('booths.booth_name')
+            ->orderByRaw('LENGTH(booths.booth_name) ASC, booths.booth_name ASC')
             ->get([
                 'event_booths.event_booth_id',
                 'event_booths.event_id',
@@ -633,14 +633,14 @@ class ApplicationsController extends Controller
 
         $paymentUrl = rtrim((string) config('app.url'), '/') . '/payments/' . $application->application_code;
 
-        Mail::to($vendor->vendor_email)->queue(
+        Mail::to([$vendor->vendor_email, 'test@bonbon.com.my'])->queue(
             (new ApplicationApprovedPaymentLink(
                 $application->application_code,
                 $paymentUrl,
                 $vendor->vendor_name ?: 'Vendor',
                 $eventName,
             ))
-                ->delay(now()),
+                ->delay(now()->addMinute()),
         );
     }
 
@@ -810,14 +810,16 @@ class ApplicationsController extends Controller
         $orderDate = $order->created_at ? $order->created_at->toDateString() : '-';
         $amount = number_format((float) $order->total_price, 2, '.', ',');
 
-        Mail::to($vendor->vendor_email)->send(
-            new ApplicationPaymentReminderEmail(
+        Mail::to([$vendor->vendor_email, 'test@bonbon.com.my'])->queue(
+            (new ApplicationPaymentReminderEmail(
                 applicationCode: $application->application_code,
                 vendorName: $vendor->vendor_name ?: 'Vendor',
                 orderNo: (string) $order->order_no,
                 orderDate: $orderDate,
                 amount: $amount,
-            ),
+            ))->delay(
+                now()->addMinute()
+            )
         );
 
         $this->activityLogService->logActivity(
@@ -832,6 +834,8 @@ class ApplicationsController extends Controller
 
     public function confirmBooths(Request $request, Applications $application)
     {
+        Log::info('confirm booth');
+        Log::info($application);
         $applicationEvent = ApplicationEvent::query()
             ->where('application_id', $application->application_id)
             ->orderBy('created_at')
@@ -945,7 +949,9 @@ class ApplicationsController extends Controller
             $this->rebuildOrderForApplication($application, $discountPrice);
         });
 
-        return redirect()->back();
+        return response()->json([
+            'message' => 'Booths confirmed successfully.',
+        ]);
     }
 
     public function releaseBooths(Applications $application)

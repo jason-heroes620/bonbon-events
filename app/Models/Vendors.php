@@ -30,6 +30,7 @@ class Vendors extends Model
         'vendor_bank_account_no',
         'vendor_bank_account_name',
         'is_active',
+        'vendor_status',
     ];
     protected $casts = [
         'social_medias' => 'array',

@@ -10,9 +10,15 @@ type EditVendorProps = {
     categories: Pick<Category, "category_id" | "category_name">[];
 };
 
-export default function EditVendor({ vendor, users, categories }: EditVendorProps) {
+export default function EditVendor({
+    vendor,
+    users,
+    categories,
+}: EditVendorProps) {
     const handleDelete = () => {
-        const confirmed = window.confirm(`Delete vendor "${vendor.vendor_name}"?`);
+        const confirmed = window.confirm(
+            `Delete vendor "${vendor.vendor_name}"?`,
+        );
         if (!confirmed) return;
 
         router.delete(`/vendors/${vendor.vendor_id}`);
@@ -28,14 +34,13 @@ export default function EditVendor({ vendor, users, categories }: EditVendorProp
                 <div className="rounded-lg border bg-white p-6">
                     <div className="mb-6 flex items-start justify-between gap-4">
                         <div>
-                            <h1 className="text-lg font-semibold">Edit Vendor</h1>
+                            <h1 className="text-lg font-semibold">
+                                Edit Vendor
+                            </h1>
                             <p className="text-sm text-muted-foreground">
                                 Update vendor profile details and status.
                             </p>
                         </div>
-                        <Button variant="destructive" onClick={handleDelete}>
-                            Delete
-                        </Button>
                     </div>
 
                     <VendorForm

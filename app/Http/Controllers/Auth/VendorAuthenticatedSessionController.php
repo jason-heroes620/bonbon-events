@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Vendors;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -50,7 +52,18 @@ class VendorAuthenticatedSessionController extends Controller
             return redirect('/')->with('status', 'Your account has been deactivated.');
         }
 
-        return redirect()->intended('/');
+        // Check if vendor is approved
+        $vendor = Vendors::query()
+            ->where('user_id', '=', $user->user_id)->first();
+        if (!$vendor || $vendor->vendor_status !== 'approved') {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect('/')->with('error', 'Vendor account is not approved yet. Please allow 3-5 business days for us to get back to you. Thank you.');
+        }
+
+        return redirect()->back();
     }
 
     public function destroy(Request $request): RedirectResponse

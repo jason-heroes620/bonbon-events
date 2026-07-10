@@ -2,15 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\NewVendorRegistration;
+use App\Mail\NewVendorRegistrationEmail;
+use App\Mail\VendorApprovedMail;
+use App\Mail\VendorRejectedMail;
 use App\Models\Categories;
 use App\Models\User;
 use App\Models\Vendors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class VendorsController extends Controller
 {
@@ -59,7 +66,7 @@ class VendorsController extends Controller
                 'role' => 'vendor',
             ]);
 
-            Vendors::create([
+            $vendor = Vendors::create([
                 'user_id' => $user->user_id,
                 'vendor_name' => $validated['vendor_name'],
                 'vendor_email' => $validated['email'],
@@ -73,15 +80,28 @@ class VendorsController extends Controller
                 'vendor_bank_name' => $validated['vendor_bank_name'] ?? '',
                 'vendor_bank_account_no' => $validated['vendor_bank_account_no'] ?? '',
                 'vendor_bank_account_name' => $validated['vendor_bank_account_name'] ?? '',
-                'is_active' => true,
+                'is_active' => false,
             ]);
+
+            try {
+                Mail::to(
+                    [
+                        'felicia.n@bonbon.com.my',
+                        'elijah.k@bonbon.com.my',
+                        'jason.w@bonbon.com.my',
+                    ]
+                )
+                    ->later(now()->addMinute(), new NewVendorRegistrationEmail($vendor));
+            } catch (Throwable $ex) {
+                Log::error($ex);
+            }
 
             return $user;
         });
 
         $user->sendVendorEmailVerificationNotification();
 
-        return redirect('/')->with('success', 'Vendor registration successful. Please verify your email before logging in.');
+        return redirect('/')->with('success', 'Vendor registration successful. Please verify your email.');
     }
 
     public function login(Request $request)
@@ -96,6 +116,11 @@ class VendorsController extends Controller
             ->where('role', 'vendor')
             ->where('is_active', true)
             ->first();
+
+        // Check if vendor is approved
+        if ($user->vendor->vendor_status !== 'approved') {
+            return back()->withError('Vendor account is not approved.');
+        }
 
         if (!$user) {
             return back()->withError('Email not found.');
@@ -113,9 +138,10 @@ class VendorsController extends Controller
 
         $user = $request->user();
 
-        return Inertia::render('Home', [
-            'user' => $user,
-        ]);
+        // return Inertia::render('Home', [
+        //     'user' => $user,
+        // ]);
+        return redirect()->back();
     }
 
 
@@ -203,7 +229,7 @@ class VendorsController extends Controller
             'vendor_bank_name' => $validated['vendor_bank_name'],
             'vendor_bank_account_no' => $validated['vendor_bank_account_no'],
             'vendor_bank_account_name' => $validated['vendor_bank_account_name'],
-            'is_active' => (bool) ($validated['is_active'] ?? true),
+            'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 
         return redirect('/vendors');
@@ -281,5 +307,48 @@ class VendorsController extends Controller
             ->delete();
 
         return redirect('/vendors');
+    }
+
+    public function approve(Request $request, Vendors $vendor)
+    {
+        User::query()
+            ->where('user_id', $vendor->user_id)
+            ->update([
+                'is_active' => true,
+            ]);
+
+        $vendor->update([
+            'vendor_status' => 'approved',
+            'is_active' => true,
+        ]);
+
+        try {
+            Mail::to([$vendor->vendor_email, 'test@bonbon.com.my'])
+                ->queue((new VendorApprovedMail($vendor))->delay(now()->addMinutes(1)));
+        } catch (\Exception $e) {
+            report($e);
+        }
+
+        return redirect()->back();
+    }
+
+    public function reject(Request $request, Vendors $vendor)
+    {
+        User::query()
+            ->where('user_id', $vendor->user_id)
+            ->update([
+                'is_active' => false,
+            ]);
+        $vendor->update([
+            'vendor_status' => 'rejected',
+        ]);
+        try {
+            Mail::to([$vendor->vendor_email, 'test@bonbon.com.my'])
+                ->queue((new VendorRejectedMail($vendor))->delay(now()->addMinutes(1)));
+        } catch (\Exception $e) {
+            report($e);
+        }
+
+        return redirect()->back();
     }
 }

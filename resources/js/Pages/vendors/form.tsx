@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import type { Category, User, Vendor } from "@/types";
 import type { FormEvent } from "react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import axios from "axios";
+import { toast } from "sonner";
 
 type VendorFormData = {
     user_id: string;
@@ -26,6 +28,7 @@ type VendorFormData = {
     vendor_bank_account_no?: string;
     vendor_bank_account_name?: string;
     is_active: boolean;
+    vendor_status: string;
 };
 
 type VendorFormProps = {
@@ -84,6 +87,7 @@ export default function VendorForm({
         vendor_bank_account_no: vendor?.vendor_bank_account_no ?? "",
         vendor_bank_account_name: vendor?.vendor_bank_account_name ?? "",
         is_active: vendor?.is_active ?? true,
+        vendor_status: vendor?.vendor_status ?? "",
     });
 
     const submit = (e: FormEvent) => {
@@ -95,6 +99,38 @@ export default function VendorForm({
         }
 
         form.put(submitUrl);
+    };
+
+    const handleApprove = async () => {
+        if (!confirm("Are you sure you want to approve this vendor?")) {
+            return;
+        }
+        router.post(`${submitUrl}/approve`, undefined, {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success("Vendor approved successfully");
+                router.reload();
+            },
+            onError: () => {
+                toast.error("Failed to approve vendor");
+            },
+        });
+    };
+
+    const handleReject = async () => {
+        if (!confirm("Are you sure you want to reject this vendor?")) {
+            return;
+        }
+        router.post(`${submitUrl}/reject`, undefined, {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success("Vendor rejected successfully");
+                router.reload();
+            },
+            onError: () => {
+                toast.error("Failed to reject vendor");
+            },
+        });
     };
 
     return (
@@ -112,6 +148,7 @@ export default function VendorForm({
                             form.setData("user_id", e.target.value)
                         }
                         aria-invalid={Boolean(form.errors.user_id)}
+                        disabled={method === "put"}
                     >
                         <option value="" disabled>
                             Select a user
@@ -584,6 +621,66 @@ export default function VendorForm({
                     Active
                 </label>
             </div>
+
+            <hr />
+            {method === "put" && vendor?.vendor_status === "pending" ? (
+                <div className="flex items-center gap-2">
+                    <label
+                        htmlFor="vendor_status"
+                        className="text-sm font-medium"
+                    >
+                        Status
+                    </label>
+                    <Button
+                        variant="default"
+                        type="button"
+                        onClick={handleApprove}
+                    >
+                        Approve
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        type="button"
+                        onClick={handleReject}
+                    >
+                        Reject
+                    </Button>
+                    {/* <label
+                        htmlFor="vendor_status"
+                        className="text-sm font-medium"
+                    >
+                        Status
+                    </label>
+                    <select
+                        id="vendor_status"
+                        value={form.data.vendor_status}
+                        className={selectClassName}
+                        onChange={(e) =>
+                            form.setData("vendor_status", e.target.value)
+                        }
+                        aria-invalid={Boolean(
+                            (form.errors as any)["vendor_status"],
+                        )}
+                    >
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                    {(form.errors as any)["vendor_status"] ? (
+                        <p className="text-sm text-red-600">
+                            {(form.errors as any)["vendor_status"]}
+                        </p>
+                    ) : null} */}
+                </div>
+            ) : vendor?.vendor_status === "approved" ? (
+                <div className="bg-green-600 px-2 py-1 rounded-full text-center">
+                    <p className="text-sm font-medium text-white">Approved</p>
+                </div>
+            ) : (
+                <div className="bg-red-500 px-2 py-1 rounded-full text-center">
+                    <p className="text-sm font-medium text-white">Rejected</p>
+                </div>
+            )}
 
             <div className="flex items-center justify-end gap-2">
                 <Button

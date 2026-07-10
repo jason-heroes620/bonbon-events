@@ -31,6 +31,7 @@ type VendorProfileFormData = {
     vendor_bank_name: string;
     vendor_bank_account_no: string;
     vendor_bank_account_name: string;
+    vendor_status: string;
 };
 
 const textareaClassName =
@@ -74,6 +75,7 @@ export default function VendorProfile({
         vendor_bank_name: vendor.vendor_bank_name ?? "",
         vendor_bank_account_no: vendor.vendor_bank_account_no ?? "",
         vendor_bank_account_name: vendor.vendor_bank_account_name ?? "",
+        vendor_status: vendor.vendor_status ?? "",
     });
 
     const submit = (e: FormEvent) => {

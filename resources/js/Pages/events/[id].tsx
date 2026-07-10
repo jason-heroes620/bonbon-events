@@ -1,8 +1,7 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, router } from "@inertiajs/react";
+import { Head } from "@inertiajs/react";
 import EventForm from "./form";
 import type { Event, Location, Deposit, BoothType, Booth } from "@/types";
-import { Button } from "@/components/ui/button";
 
 type EditEventProps = {
     event: Event;
@@ -22,13 +21,6 @@ export default function EditEvent({
     boothTypes,
     booths,
 }: EditEventProps) {
-    const handleDelete = () => {
-        const confirmed = window.confirm(`Delete event "${event.event_name}"?`);
-        if (!confirmed) return;
-
-        router.delete(`/events/${event.event_id}`);
-    };
-
     return (
         <AuthenticatedLayout
             header={<h2 className="text-xl font-semibold">Events</h2>}
@@ -46,9 +38,9 @@ export default function EditEvent({
                                 Update event details.
                             </p>
                         </div>
-                        <Button variant="destructive" onClick={handleDelete}>
+                        {/* <Button variant="destructive" onClick={handleDelete}>
                             Delete
-                        </Button>
+                        </Button> */}
                     </div>
 
                     <EventForm
@@ -58,7 +50,6 @@ export default function EditEvent({
                         boothTypes={boothTypes}
                         booths={booths}
                         submitUrl={`/events/${event.event_id}`}
-                        method="post"
                         submitLabel="Save"
                         cancelUrl="/events"
                     />
