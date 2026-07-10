@@ -17,6 +17,9 @@ use App\Http\Controllers\PaymentsController;
 use App\Http\Controllers\VendorsController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Vendor\VendorApplicationsController;
+use App\Http\Controllers\Vendor\VendorOrdersController;
+use App\Http\Middleware\EnsureVendorAccess;
 use App\Http\Middleware\RejectVendorAccess;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
@@ -50,6 +53,21 @@ Route::get('/events/{event}/detail', [EventsController::class, 'publicDetail'])
     ->whereUuid('event')
     ->name('events.detail');
 
+Route::middleware(['auth', 'verified', EnsureVendorAccess::class])
+    ->prefix('vendor')
+    ->group(function () {
+        Route::get('/applications', [VendorApplicationsController::class, 'index'])
+            ->name('vendor.applications.index');
+        Route::get('/applications/{application}', [VendorApplicationsController::class, 'show'])
+            ->whereUuid('application')
+            ->name('vendor.applications.show');
+
+        Route::get('/orders', [VendorOrdersController::class, 'index'])
+            ->name('vendor.orders.index');
+        Route::get('/orders/{order}', [VendorOrdersController::class, 'show'])
+            ->whereUuid('order')
+            ->name('vendor.orders.show');
+    });
 
 Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');

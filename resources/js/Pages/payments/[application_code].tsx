@@ -550,7 +550,11 @@ export default function PaymentsShow({
                             {/* check if has history, back to history page else go to home page */}
                             {history.length > 0 ? (
                                 <a
-                                    href="/"
+                                    href="#"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        window.history.back();
+                                    }}
                                     className={buttonVariants({
                                         variant: "outline",
                                     })}

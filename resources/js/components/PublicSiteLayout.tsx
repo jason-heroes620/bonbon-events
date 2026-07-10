@@ -122,7 +122,7 @@ export default function PublicSiteLayout({
             : children;
 
     return (
-        <>
+        <div className="flex flex-col h-screen">
             <div className="topbar">
                 <a className="logo" href="/">
                     <div className="flex items-center gap-2">
@@ -173,6 +173,28 @@ export default function PublicSiteLayout({
                                         >
                                             Profile
                                         </Link>
+                                        {authUser?.role === "vendor" ? (
+                                            <>
+                                                <Link
+                                                    href="/vendor/applications"
+                                                    className="block w-full px-3 py-2 text-sm hover:bg-muted/50"
+                                                    onClick={() =>
+                                                        setShowUserMenu(false)
+                                                    }
+                                                >
+                                                    Applications
+                                                </Link>
+                                                <Link
+                                                    href="/vendor/orders"
+                                                    className="block w-full px-3 py-2 text-sm hover:bg-muted/50"
+                                                    onClick={() =>
+                                                        setShowUserMenu(false)
+                                                    }
+                                                >
+                                                    Orders
+                                                </Link>
+                                            </>
+                                        ) : null}
                                         <button
                                             type="button"
                                             className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/50"
@@ -208,8 +230,7 @@ export default function PublicSiteLayout({
                     )}
                 </div>
             </div>
-
-            {content}
+            <div className="grow">{content}</div>
 
             <div className="footer">
                 <div className="flex flex-col justify-start gap-4">
@@ -472,6 +493,6 @@ export default function PublicSiteLayout({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </>
+        </div>
     );
 }
