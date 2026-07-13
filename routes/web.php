@@ -229,6 +229,12 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
         Artisan::call('storage:link');
         return Artisan::output(); // This will echo "The [public/storage] directory has been linked."
     });
+
+    Route::get('/config-clear', function () {
+        Artisan::call('config:clear');
+        Artisan::call('config:cache');
+        return Artisan::output(); // This will echo "The [public/storage] directory has been linked."
+    });
 });
 
 Route::post('/events/participate-multi', [ApplicationsController::class, 'participateMulti'])
