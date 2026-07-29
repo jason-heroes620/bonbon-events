@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -37,5 +38,10 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendVendorEmailVerificationNotification(): void
     {
         $this->sendEmailVerificationNotification();
+    }
+
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendors::class, 'user_id', 'user_id');
     }
 }

@@ -49,7 +49,7 @@ class VendorAuthenticatedSessionController extends Controller
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect('/')->with('status', 'Your account has been deactivated.');
+            return redirect('/')->with('status', 'Your account is inactive.');
         }
 
         // Check if vendor is approved

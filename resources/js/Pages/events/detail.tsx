@@ -586,7 +586,9 @@ export default function EventDetail({
                                         setAgreeTerms(e.target.checked)
                                     }
                                 />
-                                I agree to the terms and conditions.
+                                I agree to the{" "}
+                                <a href="/terms-of-service">terms of service</a>
+                                .
                             </label>
                         </div>
                     </div>

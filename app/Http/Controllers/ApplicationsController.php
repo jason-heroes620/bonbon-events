@@ -101,7 +101,7 @@ class ApplicationsController extends Controller
             'user_id' => $user->user_id,
             'vendor_id' => $vendor->vendor_id,
             'application_code' => Str::upper(Str::random(8)),
-            'application_status' => 'pending',
+            'application_status' => 'approved',
         ]);
 
         ApplicationEvent::create([
@@ -111,7 +111,7 @@ class ApplicationsController extends Controller
             'no_of_booths' => $validated['no_of_booths'],
             'requirements' => $validated['requirements'] ?? null,
             'plug' => (bool) ($validated['plug'] ?? false),
-            'application_status' => 'pending',
+            'application_status' => 'approved',
         ]);
 
         return response()->json([
