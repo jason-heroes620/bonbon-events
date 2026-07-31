@@ -20,6 +20,7 @@ type BoothRow = {
     booth_name: string;
     occupied: boolean;
     vendor_name: string | null;
+    booth_description: string | null;
 };
 
 type BoothGroup = {
@@ -35,12 +36,16 @@ type LayoutOverviewProps = {
 
 export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
     const [selectedLayoutUrl, setSelectedLayoutUrl] = useState<string>(
-        event.primary_layout_image ?? event.event_layout_images[0]?.image_path ?? "",
+        event.primary_layout_image ??
+            event.event_layout_images[0]?.image_path ??
+            "",
     );
 
     useEffect(() => {
         setSelectedLayoutUrl(
-            event.primary_layout_image ?? event.event_layout_images[0]?.image_path ?? "",
+            event.primary_layout_image ??
+                event.event_layout_images[0]?.image_path ??
+                "",
         );
     }, [event.event_layout_images, event.primary_layout_image]);
 
@@ -87,24 +92,30 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
 
                                     {event.event_layout_images.length > 1 ? (
                                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                            {event.event_layout_images.map((image) => (
-                                                <button
-                                                    key={image.event_layout_image_id}
-                                                    type="button"
-                                                    className="overflow-hidden rounded border"
-                                                    onClick={() =>
-                                                        setSelectedLayoutUrl(
-                                                            image.image_path,
-                                                        )
-                                                    }
-                                                >
-                                                    <img
-                                                        src={image.image_path}
-                                                        alt="Booth layout thumbnail"
-                                                        className="h-24 w-full object-cover"
-                                                    />
-                                                </button>
-                                            ))}
+                                            {event.event_layout_images.map(
+                                                (image) => (
+                                                    <button
+                                                        key={
+                                                            image.event_layout_image_id
+                                                        }
+                                                        type="button"
+                                                        className="overflow-hidden rounded border"
+                                                        onClick={() =>
+                                                            setSelectedLayoutUrl(
+                                                                image.image_path,
+                                                            )
+                                                        }
+                                                    >
+                                                        <img
+                                                            src={
+                                                                image.image_path
+                                                            }
+                                                            alt="Booth layout thumbnail"
+                                                            className="h-24 w-full object-cover"
+                                                        />
+                                                    </button>
+                                                ),
+                                            )}
                                         </div>
                                     ) : null}
                                 </div>
@@ -146,6 +157,9 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                                                         <th className="px-3 py-2 text-left font-medium">
                                                             Vendor
                                                         </th>
+                                                        <th className="px-3 py-2 text-left font-medium">
+                                                            Description
+                                                        </th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -178,6 +192,11 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                                                                         ? (booth.vendor_name ??
                                                                           "-")
                                                                         : "-"}
+                                                                </td>
+                                                                <td className="px-3 py-2 whitespace-pre-wrap">
+                                                                    {
+                                                                        booth.booth_description
+                                                                    }
                                                                 </td>
                                                             </tr>
                                                         ))}

@@ -200,6 +200,7 @@ class EventsController extends Controller
                 'booth_types.booth_type_name as booth_type_name',
                 'booths.booth_id as booth_id',
                 'booths.booth_name as booth_name',
+                'booths.booth_description as booth_description',
                 'event_booths.occupied as occupied',
                 DB::raw('occupants.vendor_name as vendor_name'),
             ]);
@@ -217,6 +218,7 @@ class EventsController extends Controller
                             'booth_name' => $row->booth_name,
                             'occupied' => (bool) $row->occupied,
                             'vendor_name' => $row->vendor_name,
+                            'booth_description' => $row->booth_description ?? null,
                         ];
                     })->values(),
                 ];
