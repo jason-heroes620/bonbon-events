@@ -50,7 +50,7 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
     }, [event.event_layout_images, event.primary_layout_image]);
 
     return (
-        <GuestLayout className="container mx-auto max-w-5xl">
+        <GuestLayout className="container mx-auto max-w-6xl">
             <Head title={`Layout Overview - ${event.event_name}`} />
 
             <div className="space-y-4">
@@ -63,8 +63,8 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                     </div>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-lg border bg-white p-4">
+                <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-lg border bg-white p-4 col-span-1">
                         <div className="flex items-center justify-between gap-2">
                             <div className="text-sm font-medium">
                                 Booth Layout Images
@@ -128,7 +128,7 @@ export default function LayoutOverview({ event, groups }: LayoutOverviewProps) {
                         </div>
                     </div>
 
-                    <div className="rounded-lg border bg-white p-4">
+                    <div className="rounded-lg border bg-white p-4 col-span-2">
                         <div className="text-sm font-medium">
                             Occupancy List
                         </div>
