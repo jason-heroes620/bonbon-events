@@ -324,10 +324,10 @@ class ApplicationsController extends Controller
         $application = Applications::create([
             'vendor_id' => $validated['vendor_id'],
             'application_code' => Str::upper(Str::random(8)),
-            'application_status' => 'pending',
+            'application_status' => 'approved',
         ]);
 
-        $status = (string) ($validated['application_status'] ?? 'pending');
+        $status = (string) ($validated['application_status'] ?? 'approved');
 
         foreach ($validated['events'] as $eventData) {
             ApplicationEvent::create([
@@ -337,7 +337,7 @@ class ApplicationsController extends Controller
                 'no_of_booths' => $eventData['no_of_booths'],
                 'requirements' => $eventData['requirements'] ?? null,
                 'plug' => (bool) ($eventData['plug'] ?? false),
-                'application_status' => $status,
+                'application_status' => 'approved',
             ]);
         }
 
