@@ -151,15 +151,15 @@ class ApplicationsController extends Controller
             ], 422);
         }
 
-        if (
-            empty($vendor->vendor_bank_name) ||
-            empty($vendor->vendor_bank_account_name) ||
-            empty($vendor->vendor_bank_account_no)
-        ) {
-            return response()->json([
-                'message' => 'Bank account not set. Please update your profile.',
-            ], 422);
-        }
+        // if (
+        //     empty($vendor->vendor_bank_name) ||
+        //     empty($vendor->vendor_bank_account_name) ||
+        //     empty($vendor->vendor_bank_account_no)
+        // ) {
+        //     return response()->json([
+        //         'message' => 'Bank account not set. Please update your profile.',
+        //     ], 422);
+        // }
 
         $eventIds = collect($validated['events'])
             ->pluck('event_id')
