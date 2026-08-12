@@ -195,6 +195,9 @@ export default function ApplicationsIndex({
                                     <th className="px-4 py-3 text-left font-medium">
                                         Payment Status
                                     </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Status
+                                    </th>
                                     <th className="px-4 py-3 text-right font-medium">
                                         Actions
                                     </th>
@@ -247,6 +250,29 @@ export default function ApplicationsIndex({
                                                     </span>
                                                 )}
                                             </td>
+                                            <td className="px-4 py-3">
+                                                {application.application_status ===
+                                                "pending" ? (
+                                                    <span className="text-yellow-800">
+                                                        Pending
+                                                    </span>
+                                                ) : application.application_status ===
+                                                  "approved" ? (
+                                                    <span className="text-emerald-800">
+                                                        Approved
+                                                    </span>
+                                                ) : application.application_status ===
+                                                  "cancelled" ? (
+                                                    <span className="text-red-800">
+                                                        Cancelled
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-red-800">
+                                                        Rejected
+                                                    </span>
+                                                )}
+                                            </td>
+
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex justify-end gap-2">
                                                     <Link

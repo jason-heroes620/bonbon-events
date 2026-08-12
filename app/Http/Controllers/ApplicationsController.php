@@ -204,7 +204,7 @@ class ApplicationsController extends Controller
                 'user_id' => $user->user_id,
                 'vendor_id' => $vendor->vendor_id,
                 'application_code' => Str::upper(Str::random(8)),
-                'application_status' => 'pending',
+                'application_status' => 'approved',
             ]);
 
             foreach ($validated['events'] as $eventData) {
@@ -747,7 +747,7 @@ class ApplicationsController extends Controller
         return redirect()->back();
     }
 
-    public function generateInvoice(Applications $application)
+    public function generateInvoice(Request $request, Applications $application)
     {
         $hasApprovedEvent = ApplicationEvent::query()
             ->where('application_id', $application->application_id)
@@ -772,7 +772,32 @@ class ApplicationsController extends Controller
             ]);
         }
 
-        $this->invoiceService->upsertInvoiceForOrder($order, $application);
+        $hasOrderItems = OrderItems::query()
+            ->where('order_id', $order->order_id)
+            ->where('is_active', true)
+            ->exists();
+
+        if (!$hasOrderItems) {
+            throw ValidationException::withMessages([
+                'order' => ['No order items found. Please confirm booths first.'],
+            ]);
+        }
+
+        $existingInvoice = Invoices::query()
+            ->where('order_id', $order->order_id)
+            ->orderByDesc('created_at')
+            ->first();
+
+        $invoice = $this->invoiceService->upsertInvoiceForOrder($order, $application);
+
+        $this->activityLogService->logActivity(
+            applicationCode: $application->application_code,
+            activityType: $existingInvoice ? 'Invoice Regenerated' : 'Invoice Generated',
+            activityDescription: $existingInvoice
+                ? 'Invoice regenerated: ' . ($invoice->invoice_no ?? '')
+                : 'Invoice generated: ' . ($invoice->invoice_no ?? ''),
+            userId: (string) ($request->user()?->user_id ?? ''),
+        );
 
         return redirect()->back();
     }
@@ -949,9 +974,10 @@ class ApplicationsController extends Controller
             $this->rebuildOrderForApplication($application, $discountPrice);
         });
 
-        return response()->json([
-            'message' => 'Booths confirmed successfully.',
-        ]);
+        // return response()->json([
+        //     'message' => 'Booths confirmed successfully.',
+        // ]);
+        return redirect()->back();
     }
 
     public function releaseBooths(Applications $application)

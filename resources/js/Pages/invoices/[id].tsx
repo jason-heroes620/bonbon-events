@@ -162,7 +162,7 @@ export default function InvoiceShow({
                     </Link>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-4">
                     <div className="flex flex-row items-center justify-between rounded-lg border bg-white p-4">
                         <div className="text-sm text-muted-foreground">
                             Status
@@ -195,7 +195,7 @@ export default function InvoiceShow({
                         <div className="text-sm text-muted-foreground">
                             Invoice Amount
                         </div>
-                        <div className="text-lg font-semibold">
+                        <div className="text-md  font-semibold">
                             {formatAmount(invoice.invoice_amount)}
                         </div>
                     </div>
@@ -205,6 +205,17 @@ export default function InvoiceShow({
                         </div>
                         <div className="text-sm">
                             {formatDate(invoice.invoice_date, "MMM d, yyyy")}
+                        </div>
+                    </div>
+                    <div className="flex flex-row items-center justify-between rounded-lg border bg-white p-4">
+                        <div className="text-sm text-muted-foreground">
+                            Payment Date
+                        </div>
+                        <div className="text-sm">
+                            {formatDate(
+                                payment?.payment_date ?? "",
+                                "MMM d, yyyy",
+                            )}
                         </div>
                     </div>
                 </div>

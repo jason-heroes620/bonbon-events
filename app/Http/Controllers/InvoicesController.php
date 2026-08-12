@@ -23,6 +23,9 @@ class InvoicesController extends Controller
 
         $invoices = Invoices::query()
             ->leftJoin('orders', 'invoices.order_id', '=', 'orders.order_id')
+            ->leftJoin('applications', 'orders.application_id', '=', 'applications.application_id')
+            ->leftJoin('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
+            ->leftJoin('payments', 'orders.order_id', '=', 'payments.order_id')
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('invoices.invoice_no', 'like', "%{$search}%")
@@ -30,7 +33,7 @@ class InvoicesController extends Controller
                         ->orWhere('invoices.application_id', 'like', "%{$search}%");
                 });
             })
-            ->orderByDesc('invoices.created_at')
+            ->orderByDesc('invoices.invoice_no')
             ->paginate(10, [
                 'invoices.invoice_id',
                 'invoices.invoice_no',
@@ -44,6 +47,8 @@ class InvoicesController extends Controller
                 'invoices.created_at',
                 'orders.order_no as order_no',
                 'orders.is_paid as is_paid',
+                'vendors.vendor_name as vendor_name',
+                'payments.payment_date as payment_date',
             ])
             ->withQueryString();
 

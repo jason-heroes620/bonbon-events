@@ -1,8 +1,17 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, router } from "@inertiajs/react";
-import { buttonVariants } from "@/components/ui/button";
+import { Head, Link, useForm } from "@inertiajs/react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useState } from "react";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 type Order = {
     order_id: string;
@@ -43,11 +52,21 @@ type OrderCharge = {
     sort_order: number;
 };
 
+type Payment = {
+    payment_id: string;
+    transaction_id: string;
+    payment_amount: number | string;
+    payment_date: string;
+    payment_method: string | null;
+    payment_file: string | null;
+} | null;
+
 type OrderShowProps = {
     order: Order;
     invoice: Invoice;
     items: OrderItem[];
     charges: OrderCharge[];
+    payment: Payment;
 };
 
 export default function OrderShow({
@@ -55,12 +74,29 @@ export default function OrderShow({
     invoice,
     items,
     charges,
+    payment,
 }: OrderShowProps) {
+    const [showUpdatePayment, setShowUpdatePayment] = useState(false);
     const formatAmount = (value: number | string) => {
         const n = typeof value === "number" ? value : Number(value);
         if (Number.isFinite(n)) return n.toFixed(2);
         return String(value);
     };
+
+    const today = new Date().toISOString().split("T")[0] ?? "";
+    const paymentForm = useForm<{
+        transaction_id: string;
+        payment_amount: string;
+        payment_date: string;
+        payment_method: string;
+        payment_file: File | null;
+    }>({
+        transaction_id: payment?.transaction_id ?? "",
+        payment_amount: String(order?.total_price ?? 0),
+        payment_date: today,
+        payment_method: payment?.payment_method ?? "",
+        payment_file: null,
+    });
 
     return (
         <AuthenticatedLayout
@@ -108,17 +144,28 @@ export default function OrderShow({
                         <div className="text-sm text-muted-foreground">
                             Paid Status
                         </div>
-                        <div className="mt-1">
-                            <span
-                                className={cn(
-                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                                    order.is_paid
-                                        ? "bg-emerald-100 text-emerald-800"
-                                        : "bg-amber-100 text-amber-800",
-                                )}
+                        <div className="flex items-center justify-between">
+                            <div className="mt-1">
+                                <span
+                                    className={cn(
+                                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                        order.is_paid
+                                            ? "bg-emerald-100 text-emerald-800"
+                                            : "bg-amber-100 text-amber-800",
+                                    )}
+                                >
+                                    {order.is_paid ? "Paid" : "Unpaid"}
+                                </span>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={order.is_paid}
+                                onClick={() => setShowUpdatePayment(true)}
                             >
-                                {order.is_paid ? "Paid" : "Unpaid"}
-                            </span>
+                                Update Payment
+                            </Button>
                         </div>
                     </div>
                     <div className="rounded-lg border bg-white p-4">
@@ -240,19 +287,249 @@ export default function OrderShow({
                                 {invoice ? invoice.invoice_no : "Not generated"}
                             </div>
                         </div>
-                        {invoice ? (
-                            <Link
-                                href={`/invoices/${invoice.invoice_id}`}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {invoice ? (
+                                <Link
+                                    href={`/invoices/${invoice.invoice_id}`}
+                                    className={buttonVariants({
+                                        variant: "outline",
+                                    })}
+                                >
+                                    View Invoice
+                                </Link>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rounded-lg border bg-white p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-base font-semibold">
+                            Payment Information
+                        </h2>
+                        {payment?.payment_file ? (
+                            <a
+                                href={payment.payment_file}
+                                target="_blank"
+                                rel="noreferrer"
                                 className={buttonVariants({
-                                    variant: "outline",
+                                    variant: "link",
+                                    size: "sm",
                                 })}
                             >
-                                View Invoice
-                            </Link>
+                                View Payment File
+                            </a>
                         ) : null}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="rounded border p-3">
+                            <div className="text-xs text-muted-foreground">
+                                Transaction ID
+                            </div>
+                            <div className="text-sm font-medium">
+                                {payment?.transaction_id ?? "-"}
+                            </div>
+                        </div>
+                        <div className="rounded border p-3">
+                            <div className="text-xs text-muted-foreground">
+                                Amount
+                            </div>
+                            <div className="text-sm font-medium">
+                                {payment?.payment_amount != null
+                                    ? formatAmount(payment.payment_amount)
+                                    : "-"}
+                            </div>
+                        </div>
+                        <div className="rounded border p-3">
+                            <div className="text-xs text-muted-foreground">
+                                Payment Date
+                            </div>
+                            <div className="text-sm font-medium">
+                                {payment?.payment_date
+                                    ? format(
+                                          new Date(payment.payment_date),
+                                          "MMM d, y",
+                                      )
+                                    : "-"}
+                            </div>
+                        </div>
+                        <div className="rounded border p-3">
+                            <div className="text-xs text-muted-foreground">
+                                Payment Method
+                            </div>
+                            <div className="text-sm font-medium">
+                                {payment?.payment_method ?? "-"}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <Dialog
+                open={showUpdatePayment}
+                onOpenChange={setShowUpdatePayment}
+            >
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Update Payment</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Transaction ID
+                            </label>
+                            <Input
+                                value={paymentForm.data.transaction_id}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "transaction_id",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.transaction_id ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.transaction_id}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment Amount
+                            </label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                value={paymentForm.data.payment_amount}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_amount",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_amount ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_amount}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment Date
+                            </label>
+                            <Input
+                                type="date"
+                                value={paymentForm.data.payment_date}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_date",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_date ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_date}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment Method
+                            </label>
+                            <Input
+                                value={paymentForm.data.payment_method}
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_method",
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_method ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_method}
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                                Payment File
+                            </label>
+                            <Input
+                                type="file"
+                                onChange={(e) =>
+                                    paymentForm.setData(
+                                        "payment_file",
+                                        e.target.files?.[0] ?? null,
+                                    )
+                                }
+                            />
+                            {paymentForm.errors.payment_file ? (
+                                <p className="text-sm text-destructive">
+                                    {paymentForm.errors.payment_file}
+                                </p>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowUpdatePayment(false)}
+                            disabled={paymentForm.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={paymentForm.processing}
+                            onClick={() =>
+                                paymentForm.post(
+                                    `/orders/${order.order_id}/update-payment`,
+                                    {
+                                        forceFormData: true,
+                                        preserveScroll: true,
+                                        onSuccess: () => {
+                                            setShowUpdatePayment(false);
+                                            paymentForm.reset();
+                                        },
+                                        onError: (errors) => {
+                                            const first =
+                                                errors?.transaction_id ??
+                                                errors?.payment_amount ??
+                                                errors?.payment_date ??
+                                                errors?.payment_method ??
+                                                errors?.payment_file ??
+                                                errors?.order ??
+                                                "Failed to update payment.";
+                                            const msg = Array.isArray(first)
+                                                ? first[0]
+                                                : String(first);
+                                            if (
+                                                typeof window !== "undefined" &&
+                                                typeof window.alert ===
+                                                    "function"
+                                            ) {
+                                                window.alert(msg);
+                                            }
+                                        },
+                                    },
+                                )
+                            }
+                        >
+                            {paymentForm.processing ? "Saving..." : "Save"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }

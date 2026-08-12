@@ -2,17 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Applications;
 use App\Models\Invoices;
 use App\Models\OrderCharges;
 use App\Models\OrderItems;
 use App\Models\Orders;
+use App\Models\Payments;
+use App\Services\ActivityLogService;
+use App\Services\InvoiceService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class OrdersController extends Controller
 {
+    public function __construct(
+        private InvoiceService $invoiceService,
+        private ActivityLogService $activityLogService,
+    ) {}
+
     public function index(Request $request): Response
     {
         $search = $request->string('search')->toString();
@@ -33,6 +44,8 @@ class OrdersController extends Controller
                 $join->on('orders.order_id', '=', 'invoices.order_id', 'and', false)
                     ->on('invoices.created_at', '=', 'latest_invoices.max_created_at', 'and', false);
             })
+            ->leftJoin('applications', 'orders.application_id', '=', 'applications.application_id')
+            ->leftJoin('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('orders.order_no', 'like', "%{$search}%")
@@ -56,6 +69,7 @@ class OrdersController extends Controller
                 'invoices.invoice_id as invoice_id',
                 'invoices.invoice_no as invoice_no',
                 'invoices.invoice_status as invoice_status',
+                'vendors.vendor_name as vendor_name',
             ])
             ->withQueryString();
 
@@ -104,6 +118,18 @@ class OrdersController extends Controller
                 'sort_order',
             ]);
 
+        $payment = Payments::query()
+            ->where('order_id', $order->order_id)
+            ->orderByDesc('created_at')
+            ->first([
+                'payment_id',
+                'transaction_id',
+                'payment_amount',
+                'payment_date',
+                'payment_method',
+                'payment_file',
+            ]);
+
         return Inertia::render('orders/[id]', [
             'order' => $order->only([
                 'order_id',
@@ -121,6 +147,119 @@ class OrdersController extends Controller
             'invoice' => $invoice,
             'items' => $items,
             'charges' => $charges,
+            'payment' => $payment,
+        ]);
+    }
+
+    public function updatePayment(Request $request, Orders $order)
+    {
+        $validated = $request->validate([
+            'transaction_id' => ['required', 'string', 'max:50'],
+            'payment_amount' => ['required', 'numeric', 'min:0'],
+            'payment_date' => ['required', 'date'],
+            'payment_method' => ['required', 'string', 'max:255'],
+            'payment_file' => ['required', 'file', 'max:5120'],
+        ]);
+
+        if (! (bool) ($order->is_active ?? false)) {
+            throw ValidationException::withMessages([
+                'order' => ['Order is no longer active.'],
+            ]);
+        }
+
+        if ((bool) ($order->is_paid ?? false)) {
+            throw ValidationException::withMessages([
+                'order' => ['Order is already paid.'],
+            ]);
+        }
+
+        if (! $order->application_id) {
+            throw ValidationException::withMessages([
+                'order' => ['Order has no application linked.'],
+            ]);
+        }
+
+        $hasOrderItems = OrderItems::query()
+            ->where('order_id', $order->order_id)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $hasOrderItems) {
+            throw ValidationException::withMessages([
+                'order' => ['Order has no items. Please confirm booths first.'],
+            ]);
+        }
+
+        $paymentFilePath = null;
+        if ($request->hasFile('payment_file')) {
+            $path = $request->file('payment_file')->storePublicly('payments', 'public');
+            $paymentFilePath = "/storage/{$path}";
+        }
+
+        $application = Applications::query()
+            ->where('application_id', $order->application_id)
+            ->first(['application_id', 'application_code']);
+
+        if (! $application) {
+            throw ValidationException::withMessages([
+                'order' => ['Application not found for this order.'],
+            ]);
+        }
+
+        $invoice = null;
+
+        DB::transaction(function () use ($order, $application, $validated, $paymentFilePath, &$invoice) {
+            /** @var Invoices $invoice */
+            $invoice = $this->invoiceService->upsertInvoiceForOrder($order, $application);
+
+            Payments::create([
+                'order_id' => $order->order_id,
+                'order_no' => $order->order_no,
+                'transaction_id' => $validated['transaction_id'],
+                'payment_amount' => (float) $validated['payment_amount'],
+                'payment_date' => Carbon::parse((string) $validated['payment_date'])->startOfDay()->toDateTimeString(),
+                'payment_method' => $validated['payment_method'],
+                'payment_file' => $paymentFilePath,
+                'payment_status' => 1,
+            ]);
+
+            $order->update([
+                'is_paid' => true,
+            ]);
+
+            $invoice->update([
+                'invoice_status' => 'paid',
+            ]);
+        });
+
+        $this->activityLogService->logActivity(
+            applicationCode: (string) $application->application_code,
+            activityType: 'Payment Updated',
+            activityDescription: 'Payment updated via order detail: ' . (string) ($invoice?->invoice_no ?? ''),
+            userId: (string) ($request->user()?->user_id ?? ''),
+        );
+
+        return redirect()->back();
+    }
+
+    public function showPaid(Orders $order): Response
+    {
+        $order = Orders::query()
+            ->where('order_no', $order->order_no)
+            ->first();
+        $items = OrderItems::query()
+            ->where('order_id', $order->order_id)
+            ->orderBy('created_at')
+            ->get([
+                'order_item_id',
+                'quantity',
+                'price',
+                'item_description',
+            ]);
+
+        return Inertia::render('payments/[code]', [
+            'order' => $order,
+            'items' => $items,
         ]);
     }
 }

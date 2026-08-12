@@ -658,30 +658,63 @@ export default function EditApplication({
                                         <Button
                                             disabled={
                                                 orderPaid ||
-                                                !applicationApproved
+                                                !applicationApproved ||
+                                                !selected.length
                                             }
-                                            onClick={() =>
-                                                router.post(
-                                                    `/applications/${application.application_id}/events/${ae.application_event_id}/confirm-booths`,
-                                                    {
-                                                        event_booth_ids:
-                                                            selected,
-                                                        discount_price:
-                                                            discountPrice,
-                                                    },
-                                                )
-                                            }
+                                            onClick={() => {
+                                                if (
+                                                    confirm(
+                                                        "Are you sure you want to confirm the booths?",
+                                                    )
+                                                ) {
+                                                    router.post(
+                                                        `/applications/${application.application_id}/events/${ae.application_event_id}/confirm-booths`,
+                                                        {
+                                                            event_booth_ids:
+                                                                selected,
+                                                            discount_price:
+                                                                discountPrice,
+                                                        },
+                                                        {
+                                                            preserveScroll: true,
+                                                            onSuccess: () => {
+                                                                toast.success(
+                                                                    "Booths confirmed.",
+                                                                );
+                                                            },
+                                                        },
+                                                    );
+                                                }
+                                            }}
                                         >
                                             Confirm Booths
                                         </Button>
                                         <Button
                                             variant="outline"
-                                            disabled={orderPaid}
-                                            onClick={() =>
-                                                router.post(
-                                                    `/applications/${application.application_id}/events/${ae.application_event_id}/release-booths`,
-                                                )
+                                            disabled={
+                                                orderPaid || !selected.length
                                             }
+                                            onClick={() => {
+                                                if (
+                                                    confirm(
+                                                        "Are you sure you want to release the booths?",
+                                                    )
+                                                ) {
+                                                    router.post(
+                                                        `/applications/${application.application_id}/events/${ae.application_event_id}/release-booths`,
+                                                        {},
+                                                        {
+                                                            preserveScroll: true,
+                                                            onSuccess: () => {
+                                                                toast.success(
+                                                                    "Booths released.",
+                                                                );
+                                                                window.location.reload();
+                                                            },
+                                                        },
+                                                    );
+                                                }
+                                            }}
                                         >
                                             Release Booths
                                         </Button>
@@ -851,6 +884,41 @@ export default function EditApplication({
                         </div>
 
                         <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                                variant="outline"
+                                disabled={
+                                    !applicationApproved || !order || orderPaid
+                                }
+                                onClick={() =>
+                                    router.post(
+                                        `/applications/${application.application_id}/generate-invoice`,
+                                        {},
+                                        {
+                                            preserveScroll: true,
+                                            onSuccess: () => {
+                                                toast.success(
+                                                    "Invoice generated successfully.",
+                                                );
+                                            },
+                                            onError: (errors) => {
+                                                const msg =
+                                                    errors?.order ??
+                                                    errors?.application_status ??
+                                                    "Failed to generate invoice.";
+                                                toast.error(
+                                                    Array.isArray(msg)
+                                                        ? msg[0]
+                                                        : String(msg),
+                                                );
+                                            },
+                                        },
+                                    )
+                                }
+                            >
+                                {invoice
+                                    ? "Regenerate Invoice"
+                                    : "Generate Invoice"}
+                            </Button>
                             <Button
                                 variant="outline"
                                 disabled={!order || orderPaid}

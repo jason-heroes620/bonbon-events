@@ -34,6 +34,8 @@ type InvoiceRow = {
     created_at: string;
     order_no?: string | null;
     is_paid?: boolean;
+    payment_date?: string | null;
+    vendor_name?: string | null;
 };
 
 type InvoicesPageProps = {
@@ -162,6 +164,9 @@ export default function InvoicesIndex({
                                         Order No
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
+                                        Vendor
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
                                         Status
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
@@ -175,6 +180,9 @@ export default function InvoicesIndex({
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
                                         Invoice Date
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Payment Date
                                     </th>
                                     <th className="px-4 py-3 text-right font-medium">
                                         Actions
@@ -208,6 +216,25 @@ export default function InvoicesIndex({
                                             <td className="px-4 py-3 text-muted-foreground">
                                                 {invoice.order_no ?? "-"}
                                             </td>
+                                            <td className="px-4 py-3 text-muted-foreground">
+                                                {invoice.vendor_name ?? "-"}
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                {formatAmount(
+                                                    invoice.sub_total,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatAmount(
+                                                    invoice.charges_total ?? 0,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatAmount(
+                                                    invoice.invoice_amount,
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <span
                                                     className={cn(
@@ -224,26 +251,19 @@ export default function InvoicesIndex({
                                                     {invoice.invoice_status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                {formatAmount(
-                                                    invoice.sub_total,
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatAmount(
-                                                    invoice.charges_total ?? 0,
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatAmount(
-                                                    invoice.invoice_amount,
-                                                )}
-                                            </td>
                                             <td className="px-4 py-3 text-muted-foreground">
                                                 {format(
                                                     invoice.invoice_date,
                                                     "MMM d, y",
                                                 )}
+                                            </td>
+                                            <td className="px-4 py-3 text-muted-foreground">
+                                                {invoice.payment_date
+                                                    ? format(
+                                                          invoice.payment_date,
+                                                          "MMM d, y",
+                                                      )
+                                                    : "-"}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex justify-end gap-2">

@@ -114,6 +114,7 @@ class VendorsController extends Controller
         $user = User::query()
             ->where('email', $validated['email'])
             ->where('role', 'vendor')
+            ->where('is_verified', true)
             ->where('is_active', true)
             ->first();
 

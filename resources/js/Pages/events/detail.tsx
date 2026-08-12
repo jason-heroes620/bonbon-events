@@ -167,11 +167,6 @@ export default function EventDetail({
                 | string
                 | undefined;
 
-            // toast.success(
-            //     applicationCode
-            //         ? `Application submitted (${applicationCode}).`
-            //         : "Application submitted.",
-            // );
             setApplyOpen(false);
             setRows([]);
             setAgreeTerms(false);
@@ -373,7 +368,13 @@ export default function EventDetail({
                 )}
             </PublicSiteLayout>
 
-            <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
+            <Dialog
+                open={applyOpen}
+                onOpenChange={(next) => {
+                    if (submitting) return;
+                    setApplyOpen(next);
+                }}
+            >
                 <DialogContent className="sm:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Apply for Events</DialogTitle>
@@ -391,6 +392,7 @@ export default function EventDetail({
                                 <select
                                     className={selectClassName}
                                     value={draft.event_id}
+                                    disabled={submitting}
                                     onChange={(e) =>
                                         setDraft((prev) => ({
                                             ...prev,
@@ -419,6 +421,7 @@ export default function EventDetail({
                                         min={1}
                                         className={selectClassName}
                                         value={draft.participants}
+                                        disabled={submitting}
                                         onChange={(e) =>
                                             setDraft((prev) => ({
                                                 ...prev,
@@ -438,6 +441,7 @@ export default function EventDetail({
                                         min={1}
                                         className={selectClassName}
                                         value={draft.no_of_booths}
+                                        disabled={submitting}
                                         onChange={(e) =>
                                             setDraft((prev) => ({
                                                 ...prev,
@@ -457,6 +461,7 @@ export default function EventDetail({
                                 <textarea
                                     className={cn(selectClassName, "h-20")}
                                     value={draft.requirements}
+                                    disabled={submitting}
                                     onChange={(e) =>
                                         setDraft((prev) => ({
                                             ...prev,
@@ -470,6 +475,7 @@ export default function EventDetail({
                                 <input
                                     type="checkbox"
                                     checked={draft.plug}
+                                    disabled={submitting}
                                     onChange={(e) =>
                                         setDraft((prev) => ({
                                             ...prev,
@@ -484,7 +490,11 @@ export default function EventDetail({
                                 <div className="text-xs text-muted-foreground">
                                     Selected: {selectedEvent?.event_name ?? "-"}
                                 </div>
-                                <Button type="button" onClick={handleAdd}>
+                                <Button
+                                    type="button"
+                                    onClick={handleAdd}
+                                    disabled={submitting}
+                                >
                                     Add
                                 </Button>
                             </div>
@@ -566,6 +576,9 @@ export default function EventDetail({
                                                                         r.event_id,
                                                                     )
                                                                 }
+                                                                disabled={
+                                                                    submitting
+                                                                }
                                                             >
                                                                 Remove
                                                             </Button>
@@ -582,6 +595,7 @@ export default function EventDetail({
                                 <input
                                     type="checkbox"
                                     checked={agreeTerms}
+                                    disabled={submitting}
                                     onChange={(e) =>
                                         setAgreeTerms(e.target.checked)
                                     }
@@ -592,6 +606,13 @@ export default function EventDetail({
                             </label>
                         </div>
                     </div>
+
+                    {submitting ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            Submitting application...
+                        </div>
+                    ) : null}
 
                     <DialogFooter>
                         <Button
@@ -607,7 +628,14 @@ export default function EventDetail({
                             onClick={handleSubmit}
                             disabled={!canSubmit}
                         >
-                            {submitting ? "Submitting..." : "Apply"}
+                            {submitting ? (
+                                <span className="inline-flex items-center gap-2">
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    Submitting...
+                                </span>
+                            ) : (
+                                "Apply"
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

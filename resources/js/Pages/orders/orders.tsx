@@ -35,8 +35,8 @@ type OrderRow = {
     invoice_id?: string | null;
     invoice_no?: string | null;
     invoice_status?: string | null;
+    vendor_name?: string | null;
 };
-
 
 type OrdersPageProps = {
     orders: Paginated<OrderRow>;
@@ -161,6 +161,9 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                         Application
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
+                                        Vendor
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
                                         Invoice
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
@@ -209,6 +212,9 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
                                                 {order.application_code}
+                                            </td>
+                                            <td className="px-4 py-3 text-muted-foreground">
+                                                {order.vendor_name || "-"}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {order.invoice_no &&

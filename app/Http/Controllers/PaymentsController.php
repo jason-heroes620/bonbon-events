@@ -103,8 +103,10 @@ class PaymentsController extends Controller
                 'order_no',
                 'application_id',
                 'application_code',
+                'sub_total',
                 'total_price',
                 'discount_price',
+                'charges_total',
                 'is_paid',
                 'created_at',
             ]);
@@ -228,6 +230,24 @@ class PaymentsController extends Controller
             ]))
             ->values();
 
+        if ($order && $order->is_paid) {
+            return Inertia::render('payments/[code]', [
+                'application' => $application->only([
+                    'application_id',
+                    'application_code',
+                    'application_status',
+                    'vendor_name',
+                ]),
+                'order' => $order,
+                'invoice' => $invoice,
+                'items' => $items,
+                'charges' => $charges,
+                'applicationEvents' => $applicationEventsView,
+                'ipay88' => [
+                    'enabled' => $this->ipay88MerchantCode() !== '' && $this->ipay88MerchantKey() !== '',
+                ],
+            ]);
+        }
         return Inertia::render('payments/[application_code]', [
             'application' => $application->only([
                 'application_id',

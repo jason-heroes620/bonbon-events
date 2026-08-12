@@ -116,6 +116,8 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
 
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OrdersController::class, 'show'])->name('orders.show');
+    Route::post('/orders/{order}/update-payment', [OrdersController::class, 'updatePayment'])
+        ->name('orders.update-payment');
 
     Route::get('/invoices', [InvoicesController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/{invoice}', [InvoicesController::class, 'show'])->name('invoices.show');
