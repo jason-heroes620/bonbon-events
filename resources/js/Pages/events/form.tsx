@@ -210,16 +210,67 @@ export default function EventForm({
             }
         });
 
-        form.setData("booths", currentBooths);
+        const nameCollator = new Intl.Collator("en", {
+            numeric: true,
+            sensitivity: "base",
+        });
+
+        const sorted = [...currentBooths].sort((a, b) => {
+            const boothA = booths.find((x) => x.booth_id === a.booth_id);
+            const boothB = booths.find((x) => x.booth_id === b.booth_id);
+            const typeA = boothTypes.find(
+                (t) => t.booth_type_id === boothA?.booth_type_id,
+            );
+            const typeB = boothTypes.find(
+                (t) => t.booth_type_id === boothB?.booth_type_id,
+            );
+
+            const typeNameA = typeA?.booth_type_name ?? "";
+            const typeNameB = typeB?.booth_type_name ?? "";
+            if (typeNameA !== typeNameB) {
+                return typeNameA.localeCompare(typeNameB);
+            }
+
+            const nameA = boothA?.booth_name ?? "";
+            const nameB = boothB?.booth_name ?? "";
+            return nameCollator.compare(nameA, nameB);
+        });
+
+        form.setData("booths", sorted);
         setSelectedBoothIds([]);
         setBoothPrice("");
     };
 
     const handleRemoveBooth = (booth_id: string) => {
-        form.setData(
-            "booths",
-            form.data.booths.filter((b) => b.booth_id !== booth_id),
+        const nextBooths = form.data.booths.filter(
+            (b) => b.booth_id !== booth_id,
         );
+        const nameCollator = new Intl.Collator("en", {
+            numeric: true,
+            sensitivity: "base",
+        });
+        const sorted = [...nextBooths].sort((a, b) => {
+            const boothA = booths.find((x) => x.booth_id === a.booth_id);
+            const boothB = booths.find((x) => x.booth_id === b.booth_id);
+            const typeA = boothTypes.find(
+                (t) => t.booth_type_id === boothA?.booth_type_id,
+            );
+            const typeB = boothTypes.find(
+                (t) => t.booth_type_id === boothB?.booth_type_id,
+            );
+
+            const typeNameA = typeA?.booth_type_name ?? "";
+            const typeNameB = typeB?.booth_type_name ?? "";
+            if (typeNameA !== typeNameB) {
+                return typeNameA.localeCompare(typeNameB);
+            }
+
+            const nameA = boothA?.booth_name ?? "";
+            const nameB = boothB?.booth_name ?? "";
+            return nameCollator.compare(nameA, nameB);
+        });
+
+        form.setData("booths", sorted);
     };
 
     const boothsPerPage = 10;
@@ -270,10 +321,36 @@ export default function EventForm({
     }, [boothsPage, boothTableTotalPages]);
 
     const paginatedEventBooths = useMemo(() => {
+        const nameCollator = new Intl.Collator("en", {
+            numeric: true,
+            sensitivity: "base",
+        });
+
+        const sorted = [...form.data.booths].sort((a, b) => {
+            const boothA = booths.find((x) => x.booth_id === a.booth_id);
+            const boothB = booths.find((x) => x.booth_id === b.booth_id);
+            const typeA = boothTypes.find(
+                (t) => t.booth_type_id === boothA?.booth_type_id,
+            );
+            const typeB = boothTypes.find(
+                (t) => t.booth_type_id === boothB?.booth_type_id,
+            );
+
+            const typeNameA = typeA?.booth_type_name ?? "";
+            const typeNameB = typeB?.booth_type_name ?? "";
+            if (typeNameA !== typeNameB) {
+                return typeNameA.localeCompare(typeNameB);
+            }
+
+            const nameA = boothA?.booth_name ?? "";
+            const nameB = boothB?.booth_name ?? "";
+            return nameCollator.compare(nameA, nameB);
+        });
+
         const start = (boothsPage - 1) * boothsPerPage;
         const end = start + boothsPerPage;
-        return form.data.booths.slice(start, end);
-    }, [boothsPage, form.data.booths]);
+        return sorted.slice(start, end);
+    }, [boothsPage, form.data.booths, booths, boothTypes]);
 
     const submit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
