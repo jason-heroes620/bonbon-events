@@ -19,6 +19,7 @@ use App\Http\Controllers\UsersController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Vendor\VendorApplicationsController;
 use App\Http\Controllers\Vendor\VendorOrdersController;
+use App\Http\Controllers\Vendor\VendorSalesController;
 use App\Http\Middleware\EnsureVendorAccess;
 use App\Http\Middleware\RejectVendorAccess;
 use Illuminate\Foundation\Application;
@@ -67,6 +68,10 @@ Route::middleware(['auth', 'verified', EnsureVendorAccess::class])
         Route::get('/orders/{order}', [VendorOrdersController::class, 'show'])
             ->whereUuid('order')
             ->name('vendor.orders.show');
+        Route::get('/sales', [VendorSalesController::class, 'index'])
+            ->name('vendor.sales.index');
+        Route::post('/sales', [VendorSalesController::class, 'store'])
+            ->name('vendor.sales.store');
     });
 
 Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(function () {

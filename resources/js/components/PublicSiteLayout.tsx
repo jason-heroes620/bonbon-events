@@ -193,6 +193,15 @@ export default function PublicSiteLayout({
                                                 >
                                                     Orders
                                                 </Link>
+                                                <Link
+                                                    href="/vendor/sales"
+                                                    className="block w-full px-3 py-2 text-sm hover:bg-muted/50"
+                                                    onClick={() =>
+                                                        setShowUserMenu(false)
+                                                    }
+                                                >
+                                                    Sales
+                                                </Link>
                                             </>
                                         ) : null}
                                         <button
