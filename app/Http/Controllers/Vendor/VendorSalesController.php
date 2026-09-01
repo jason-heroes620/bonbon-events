@@ -135,7 +135,7 @@ class VendorSalesController extends Controller
 
         $salesRanges = SalesRanges::query()
             ->where('is_active', true)
-            ->orderBy('sales_range_id')
+            ->orderBy('id')
             ->get(['id', 'sales_range'])
             ->map(fn($row) => [
                 'id' => $row->id,
