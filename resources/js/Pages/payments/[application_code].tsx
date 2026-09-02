@@ -700,7 +700,7 @@ export default function PaymentsShow({
                         </Button>
                         <Button
                             type="button"
-                            disabled={requestingInvoice || !allBoothsChosen}
+                            // disabled={requestingInvoice || !allBoothsChosen}
                             onClick={() => {
                                 setRequestingInvoice(true);
                                 router.post(
