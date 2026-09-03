@@ -9,6 +9,7 @@ use App\Models\DepositRefunds;
 use App\Models\Deposits;
 use App\Models\EventDeposits;
 use App\Models\Events;
+use App\Models\Orders;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response as ResponseFacade;
@@ -32,6 +33,7 @@ class DepositRefundController extends Controller
             ]);
 
         $applications = collect();
+
         $depositAmount = $this->getDepositAmountForEvent($selectedEventId);
 
         if ($selectedEventId !== '') {
@@ -301,12 +303,14 @@ class DepositRefundController extends Controller
             })
             ->where('application_events.event_id', $eventId)
             ->where('application_events.application_status', 'approved')
+            ->where('orders.is_paid', true)
             ->orderByDesc('application_events.created_at')
             ->get([
                 'application_events.application_event_id',
                 'applications.application_id',
                 'applications.application_code',
                 'applications.vendor_id',
+                'application_events.event_id',
                 'vendors.vendor_name',
                 'vendors.vendor_email',
                 'vendors.vendor_bank_name',
@@ -336,6 +340,23 @@ class DepositRefundController extends Controller
             $isPaid = (bool) ($row->is_paid ?? false);
             $refund = $refundsByApplicationCode->get((string) $row->application_code);
 
+            $event = Events::query()
+                ->where('event_id', $row->event_id)
+                ->select('event_name')
+                ->first();
+
+            $deposit = Orders::query()
+                ->leftJoin('order_items', 'orders.order_id', '=', 'order_items.order_id')
+                ->where('application_code', $row->application_code)
+                ->where('order_items.item_description', 'like', "Deposit - %{$event->event_name}%")
+                ->select('order_items.price')
+                ->first()
+                ->price;
+
+            if (!$deposit) {
+                $deposit = 0.0;
+            }
+
             return [
                 'application_id' => $row->application_id,
                 'application_event_id' => $row->application_event_id,
@@ -345,7 +366,7 @@ class DepositRefundController extends Controller
                 'vendor_email' => $row->vendor_email,
                 'order_id' => $row->order_id,
                 'is_paid' => $isPaid,
-                'payment_amount' => $isPaid ? $depositAmount : 0.0,
+                'payment_amount' => $isPaid ? $deposit : $depositAmount,
                 'vendor_bank_name' => $row->vendor_bank_name,
                 'vendor_bank_account_name' => $row->vendor_bank_account_name,
                 'vendor_bank_account_no' => $row->vendor_bank_account_no,

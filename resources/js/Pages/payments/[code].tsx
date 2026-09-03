@@ -704,11 +704,7 @@ export default function OrderShow({
                         </Button>
                         <Button
                             type="button"
-                            disabled={
-                                requestingInvoice ||
-                                !allBoothsChosen ||
-                                Boolean(order?.is_paid)
-                            }
+                            disabled={requestingInvoice || !allBoothsChosen}
                             onClick={() => {
                                 setRequestingInvoice(true);
                                 router.post(

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "@/components/ui/multi-select";
 import type { FormEvent } from "react";
+import { useState } from "react";
 
 type VendorRegisterFormData = {
     email: string;
@@ -54,8 +55,12 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
         },
     });
 
+    const [agreeTerms, setAgreeTerms] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
     const submit = (e: FormEvent) => {
         e.preventDefault();
+        setSubmitting(true);
         form.post("/vendor/register");
     };
 
@@ -407,6 +412,29 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                     </div>
                 </div>
 
+                <div>
+                    <hr />
+                </div>
+
+                <div>
+                    <label className="flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={agreeTerms}
+                            disabled={submitting}
+                            onChange={(e) => setAgreeTerms(e.target.checked)}
+                        />
+                        I agree to the{" "}
+                        <a
+                            href="/terms-of-service"
+                            className="underline"
+                            target="_blank"
+                        >
+                            Terms Of Service
+                        </a>
+                    </label>
+                </div>
+
                 <div className="flex items-center justify-between pt-2">
                     <Link
                         href="/login"
@@ -421,7 +449,10 @@ export default function VendorRegister({ categories }: VendorRegisterProps) {
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={form.processing}>
+                        <Button
+                            type="submit"
+                            disabled={form.processing || !agreeTerms}
+                        >
                             Register
                         </Button>
                     </div>

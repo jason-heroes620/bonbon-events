@@ -78,6 +78,10 @@ const allItems: {
                 title: "Deposit Refund",
                 url: "/deposit-refund",
             },
+            {
+                title: "Sales Report",
+                url: "/sales-report",
+            },
         ],
     },
     {

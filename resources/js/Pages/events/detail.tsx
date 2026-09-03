@@ -601,8 +601,13 @@ export default function EventDetail({
                                     }
                                 />
                                 I agree to the{" "}
-                                <a href="/terms-of-service">terms of service</a>
-                                .
+                                <a
+                                    href="/terms-of-service"
+                                    className="underline"
+                                    target="_blank"
+                                >
+                                    Terms Of Service
+                                </a>
                             </label>
                         </div>
                     </div>

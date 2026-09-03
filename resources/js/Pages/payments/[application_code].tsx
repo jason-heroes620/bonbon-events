@@ -124,6 +124,8 @@ export default function PaymentsShow({
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [requestInvoiceOpen, setRequestInvoiceOpen] = useState(false);
     const [requestingInvoice, setRequestingInvoice] = useState(false);
+    const [agreeTerms, setAgreeTerms] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     const formatAmount = (value: number | string) => {
         const n = typeof value === "number" ? value : Number(value);
@@ -522,6 +524,26 @@ export default function PaymentsShow({
                         </div>
                     </div>
                 </div> */}
+                    <div>
+                        <label className="flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={agreeTerms}
+                                disabled={submitting}
+                                onChange={(e) =>
+                                    setAgreeTerms(e.target.checked)
+                                }
+                            />
+                            I agree to the{" "}
+                            <a
+                                href="/terms-of-service"
+                                className="underline"
+                                target="_blank"
+                            >
+                                Terms Of Service
+                            </a>
+                        </label>
+                    </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <Button
@@ -579,7 +601,8 @@ export default function PaymentsShow({
                                     Boolean(order?.is_paid) ||
                                     application.application_status !==
                                         "approved" ||
-                                    !allBoothsChosen
+                                    !allBoothsChosen ||
+                                    !agreeTerms
                                 }
                                 onClick={() => {
                                     if (!allBoothsChosen) {
@@ -701,6 +724,7 @@ export default function PaymentsShow({
                         <Button
                             type="button"
                             // disabled={requestingInvoice || !allBoothsChosen}
+                            disabled={false}
                             onClick={() => {
                                 setRequestingInvoice(true);
                                 router.post(
