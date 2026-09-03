@@ -886,9 +886,7 @@ export default function EditApplication({
                         <div className="flex flex-wrap justify-end gap-2">
                             <Button
                                 variant="outline"
-                                disabled={
-                                    !applicationApproved || !order || orderPaid
-                                }
+                                disabled={!applicationApproved || !order}
                                 onClick={() =>
                                     router.post(
                                         `/applications/${application.application_id}/generate-invoice`,
