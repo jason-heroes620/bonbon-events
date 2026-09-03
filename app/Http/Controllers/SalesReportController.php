@@ -223,25 +223,22 @@ class SalesReportController extends Controller
 
     private function getBoothNumbersByApplicationEventId(string $eventId)
     {
-        $rows = DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.order_id')
-            ->leftJoin('event_booths', 'order_items.event_booth_id', '=', 'event_booths.event_booth_id')
-            ->leftJoin('booths', function ($join) {
-                $join->on('booths.booth_id', '=', 'event_booths.booth_id')
-                    ->orOn('booths.booth_id', '=', 'order_items.booth_id');
-            })
-            ->where('orders.is_active', true)
-            ->where('orders.is_paid', true)
-            ->where(function ($query) {
-                $query->where('order_items.item_type', 'booth')
-                    ->orWhereNull('order_items.item_type');
-            })
-            ->whereNotNull('order_items.application_event_id')
-            ->where('order_items.event_id', $eventId)
-            ->whereNotNull('booths.booth_id')
+        $rows = DB::table('event_booths')
+            ->join(
+                'application_events',
+                'application_events.application_event_id',
+                '=',
+                'event_booths.occupied_by_application_event_id'
+            )
+            ->join('booths', 'event_booths.booth_id', '=', 'booths.booth_id')
+            ->where('event_booths.event_id', $eventId)
+            ->where('event_booths.is_active', true)
+            ->where('event_booths.occupied', true)
+            ->whereNotNull('event_booths.occupied_by_application_event_id')
+            ->where('application_events.application_status', 'approved')
             ->orderBy('booths.booth_name')
             ->get([
-                'order_items.application_event_id',
+                'event_booths.occupied_by_application_event_id as application_event_id',
                 'booths.booth_name',
             ]);
 
