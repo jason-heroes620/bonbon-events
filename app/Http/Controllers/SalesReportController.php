@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\ApplicationEvent;
 use App\Models\SalesRanges;
+use App\Models\VendorSales;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -41,12 +45,20 @@ class SalesReportController extends Controller
             ->get(['id', 'sales_range'])
             ->values();
 
+        $salesRanges = $ranges
+            ->map(fn($range) => [
+                'id' => $range->id,
+                'sales_range' => $range->sales_range,
+            ])
+            ->values();
+
         $chartDistribution = $ranges->map(fn($range) => [
             'sales_range' => $range->sales_range,
             'vendors_count' => 0,
         ]);
 
         $paginatedRows = collect();
+        $paidVendorsForEvent = collect();
 
         if ($selectedEventId !== '') {
             $paidBaseQuery = $this->buildPaidVendorsBaseQuery($selectedEventId);
@@ -115,6 +127,32 @@ class SalesReportController extends Controller
             }
 
             $boothNumbersByApplicationEventId = $this->getBoothNumbersByApplicationEventId($selectedEventId);
+
+            $paidVendorsForEvent = $baseRows
+                ->map(function ($row) use ($boothNumbersByApplicationEventId) {
+                    $boothNumbers = $boothNumbersByApplicationEventId
+                        ->get((string) ($row->application_event_id ?? '')) ?? collect();
+                    $boothLabel = $boothNumbers->implode(', ');
+
+                    $labelParts = [];
+                    $labelParts[] = (string) ($row->vendor_name ?? '');
+                    $labelParts[] = (string) ($row->application_code ?? '');
+                    if ($boothLabel !== '') {
+                        $labelParts[] = sprintf('Booth: %s', $boothLabel);
+                    }
+
+                    return [
+                        'application_event_id' => $row->application_event_id,
+                        'application_id' => $row->application_id,
+                        'application_code' => $row->application_code,
+                        'vendor_id' => $row->vendor_id,
+                        'vendor_name' => $row->vendor_name,
+                        'booth_numbers' => $boothLabel === '' ? null : $boothLabel,
+                        'label' => implode(' • ', array_filter($labelParts, static fn($part) => trim((string) $part) !== '')),
+                    ];
+                })
+                ->sortBy('vendor_name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
 
             $tableRows = $baseRows->map(function ($row) use (
                 $latestSalesByVendor,
@@ -202,6 +240,63 @@ class SalesReportController extends Controller
             ],
             'chartDistribution' => $chartDistribution,
             'vendorRows' => $paginatedRows,
+            'salesRanges' => $salesRanges,
+            'paidVendorsForEvent' => $paidVendorsForEvent,
+        ]);
+    }
+
+    public function storeManualSubmission(Request $request)
+    {
+        $validated = $request->validate([
+            'application_event_id' => ['required', 'uuid'],
+            'total_sales_amount' => [
+                'required',
+                'string',
+                Rule::exists('sales_ranges', 'sales_range')->where(
+                    static fn($query) => $query->where('is_active', true),
+                ),
+            ],
+        ]);
+
+        $eligibleRow = ApplicationEvent::query()
+            ->letJoin('applications', 'application_events.application_id', '=', 'applications.application_id')
+            ->join('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
+            ->join('orders', function ($join) {
+                $join->on('orders.application_id', '=', 'applications.application_id')
+                    ->where('orders.is_active', true)
+                    ->where('orders.is_paid', true);
+            })
+            ->where('application_events.application_event_id', $validated['application_event_id'])
+            ->where('application_events.application_status', 'approved')
+            ->whereNotNull('applications.vendor_id')
+            ->whereNotNull('vendors.vendor_id')
+            ->first([
+                'application_events.application_event_id',
+                'application_events.application_id',
+                'application_events.event_id',
+                'applications.vendor_id',
+            ]);
+
+        if (!$eligibleRow) {
+            throw ValidationException::withMessages([
+                'application_event_id' => [
+                    'Selected vendor is not a paid, approved vendor for this event.',
+                ],
+            ]);
+        }
+
+        VendorSales::query()->create([
+            'vendor_sales_id' => (string) Str::uuid(),
+            'vendor_id' => $eligibleRow->vendor_id,
+            'application_id' => $eligibleRow->application_id,
+            'event_id' => $eligibleRow->event_id,
+            'total_sales_amount' => $validated['total_sales_amount'],
+        ]);
+
+        return redirect()->route('sales-report.index', [
+            'event_id' => $eligibleRow->event_id,
+            'sort' => $request->input('sort', 'vendor_name'),
+            'direction' => $request->input('direction', 'asc'),
         ]);
     }
 

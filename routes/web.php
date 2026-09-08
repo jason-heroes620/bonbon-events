@@ -134,6 +134,7 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
         ->middleware('throttle:6,1')
         ->name('deposit-refund.request-bank-info');
     Route::get('/sales-report', [SalesReportController::class, 'index'])->name('sales-report.index');
+    Route::post('/sales-report', [SalesReportController::class, 'storeManualSubmission'])->name('sales-report.store');
     Route::get('/mail/preview/request-bank-info/{applicationCode}', [DepositRefundController::class, 'previewRequestBankInfo'])
         ->name('mail.preview.request-bank-info');
     Route::post('/invoices/{invoice}/update-payment', [InvoicesController::class, 'updatePayment'])

@@ -1,13 +1,22 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { buttonVariants, Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Head, Link, router } from "@inertiajs/react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
 import { format } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowDownWideNarrow,
     ArrowUpNarrowWide,
     BarChart3,
+    Plus,
 } from "lucide-react";
 import {
     Bar,
@@ -56,6 +65,21 @@ type ChartDistributionRow = {
     vendors_count: number;
 };
 
+type SalesRangeOption = {
+    id: number;
+    sales_range: string;
+};
+
+type PaidVendorOption = {
+    application_event_id: string;
+    application_id: string;
+    application_code: string;
+    vendor_id: string;
+    vendor_name: string | null;
+    booth_numbers: string | null;
+    label: string;
+};
+
 type SalesReportPageProps = {
     events: EventOption[];
     selectedEventId: string | null;
@@ -65,6 +89,8 @@ type SalesReportPageProps = {
     };
     chartDistribution: ChartDistributionRow[];
     vendorRows: Paginated<VendorSalesRow>;
+    salesRanges: SalesRangeOption[];
+    paidVendorsForEvent: PaidVendorOption[];
 };
 
 const selectClassName =
@@ -115,6 +141,8 @@ export default function SalesReport({
     filters,
     chartDistribution,
     vendorRows,
+    salesRanges,
+    paidVendorsForEvent,
 }: SalesReportPageProps) {
     const [eventId, setEventId] = useState(selectedEventId ?? "");
     const [sort, setSort] = useState<"vendor_name" | "total_sales_rm">(
@@ -123,14 +151,26 @@ export default function SalesReport({
     const [direction, setDirection] = useState<"asc" | "desc">(
         filters.direction ?? "asc",
     );
+    const [manualModalOpen, setManualModalOpen] = useState(false);
+
+    const form = useForm({
+        application_event_id: "",
+        total_sales_amount: "",
+        event_id: selectedEventId ?? "",
+        sort: filters.sort ?? "vendor_name",
+        direction: filters.direction ?? "asc",
+    });
 
     useEffect(() => {
         setEventId(selectedEventId ?? "");
+        form.setData("event_id", selectedEventId ?? "");
     }, [selectedEventId]);
 
     useEffect(() => {
         setSort(filters.sort ?? "vendor_name");
         setDirection(filters.direction ?? "asc");
+        form.setData("sort", filters.sort ?? "vendor_name");
+        form.setData("direction", filters.direction ?? "asc");
     }, [filters.sort, filters.direction]);
 
     const selectedEvent = useMemo(
@@ -217,6 +257,36 @@ export default function SalesReport({
             : selectedEvent.event_name
         : "";
 
+    const closeManualModal = () => {
+        setManualModalOpen(false);
+        form.reset();
+        form.clearErrors();
+    };
+
+    const openManualModal = () => {
+        if (!selectedEventId) return;
+        form.setData("application_event_id", "");
+        form.setData("total_sales_amount", "");
+        form.setData("event_id", selectedEventId);
+        form.setData("sort", sort);
+        form.setData("direction", direction);
+        form.clearErrors();
+        setManualModalOpen(true);
+    };
+
+    const submitManualSales = () => {
+        form.post("/sales-report", {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                closeManualModal();
+                router.reload({
+                    only: ["vendorRows", "chartDistribution"],
+                });
+            },
+        });
+    };
+
     return (
         <AuthenticatedLayout
             header={<h2 className="text-xl font-semibold">Sales Report</h2>}
@@ -277,14 +347,30 @@ export default function SalesReport({
                         </div>
                     </div>
 
-                    {selectedEventLabel ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-sm text-muted-foreground">
-                            Showing sales report for event:{" "}
-                            <span className="font-medium text-foreground">
-                                {selectedEventLabel}
-                            </span>
+                            {selectedEventLabel ? (
+                                <>
+                                    Showing sales report for event:{" "}
+                                    <span className="font-medium text-foreground">
+                                        {selectedEventLabel}
+                                    </span>
+                                </>
+                            ) : (
+                                "Select an event to view sales data and record submissions."
+                            )}
                         </div>
-                    ) : null}
+                        <div>
+                            <Button
+                                type="button"
+                                disabled={!selectedEventId}
+                                onClick={openManualModal}
+                            >
+                                <Plus className="mr-1.5 h-4 w-4" />
+                                Add Sales Submission
+                            </Button>
+                        </div>
+                    </div>
                 </div>
 
                 {selectedEventId ? (
@@ -296,7 +382,7 @@ export default function SalesReport({
                                     <span>Sales Distribution</span>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
-                                    Total paid vendors:{" "}
+                                    Total vendors with sales submission:{" "}
                                     <span className="font-medium text-foreground">
                                         {totalVendors}
                                     </span>
@@ -463,6 +549,124 @@ export default function SalesReport({
                     </div>
                 )}
             </div>
+
+            <Dialog open={manualModalOpen} onOpenChange={setManualModalOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Manual Sales Submission</DialogTitle>
+                        <DialogDescription>
+                            Submit a sales entry on behalf of a paid vendor for
+                            the selected event.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label
+                                htmlFor="vendor_application_event_id"
+                                className="text-sm font-medium"
+                            >
+                                Vendor
+                            </label>
+                            <select
+                                id="vendor_application_event_id"
+                                className={selectClassName}
+                                value={form.data.application_event_id}
+                                onChange={(e) =>
+                                    form.setData(
+                                        "application_event_id",
+                                        e.target.value,
+                                    )
+                                }
+                                disabled={
+                                    form.processing ||
+                                    paidVendorsForEvent.length === 0
+                                }
+                            >
+                                <option value="">Select a vendor</option>
+                                {paidVendorsForEvent.map((option) => (
+                                    <option
+                                        key={option.application_event_id}
+                                        value={option.application_event_id}
+                                    >
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                            {form.errors.application_event_id ? (
+                                <p className="text-sm text-red-600">
+                                    {form.errors.application_event_id}
+                                </p>
+                            ) : null}
+                            {paidVendorsForEvent.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                    No paid vendors are available for this
+                                    event.
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                            <label
+                                htmlFor="sales_range_amount"
+                                className="text-sm font-medium"
+                            >
+                                Sales Range
+                            </label>
+                            <select
+                                id="sales_range_amount"
+                                className={selectClassName}
+                                value={form.data.total_sales_amount}
+                                onChange={(e) =>
+                                    form.setData(
+                                        "total_sales_amount",
+                                        e.target.value,
+                                    )
+                                }
+                                disabled={form.processing}
+                            >
+                                <option value="">Select a sales range</option>
+                                {salesRanges.map((option) => (
+                                    <option
+                                        key={option.id}
+                                        value={option.sales_range}
+                                    >
+                                        {option.sales_range}
+                                    </option>
+                                ))}
+                            </select>
+                            {form.errors.total_sales_amount ? (
+                                <p className="text-sm text-red-600">
+                                    {form.errors.total_sales_amount}
+                                </p>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={closeManualModal}
+                            disabled={form.processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={submitManualSales}
+                            disabled={
+                                form.processing ||
+                                paidVendorsForEvent.length === 0 ||
+                                form.data.application_event_id === "" ||
+                                form.data.total_sales_amount === ""
+                            }
+                        >
+                            {form.processing ? "Submitting..." : "Submit"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }
