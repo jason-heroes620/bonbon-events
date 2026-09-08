@@ -259,7 +259,7 @@ class SalesReportController extends Controller
         ]);
 
         $eligibleRow = ApplicationEvent::query()
-            ->letJoin('applications', 'application_events.application_id', '=', 'applications.application_id')
+            ->leftJoin('applications', 'application_events.application_id', '=', 'applications.application_id')
             ->join('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
             ->join('orders', function ($join) {
                 $join->on('orders.application_id', '=', 'applications.application_id')
