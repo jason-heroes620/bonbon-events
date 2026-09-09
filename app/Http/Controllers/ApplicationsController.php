@@ -6,6 +6,7 @@ use App\Mail\ApplicationApprovedPaymentLink;
 use App\Mail\ApplicationPaymentReminderEmail;
 use App\Mail\ApplicationRejectedEmail;
 use App\Jobs\GenerateInvoicePdf;
+use App\Mail\InvoiceRequestedEmail;
 use App\Models\Applications;
 use App\Models\ApplicationBooths;
 use App\Models\ApplicationEvent;
@@ -15,6 +16,7 @@ use App\Models\Charges;
 use App\Models\EventBooths;
 use App\Models\EventDeposits;
 use App\Models\Invoices;
+use App\Models\InvoiceCharges;
 use App\Models\OrderCharges;
 use App\Models\OrderItems;
 use App\Models\Orders;
@@ -24,10 +26,12 @@ use App\Models\Events;
 use App\Models\Vendors;
 use App\Services\ActivityLogService;
 use App\Services\InvoiceService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -871,6 +875,102 @@ class ApplicationsController extends Controller
             activityType: $activityType,
             activityDescription: $activityDescription,
             userId: (string) ($request->user()?->user_id ?? ''),
+        );
+
+        // send the invoice requested email
+        $applicationModel = $order->application ?? $application;
+        $vendorModel = $applicationModel?->vendor;
+        $vendorEmail = (string) ($vendorModel?->vendor_email ?? '');
+        if ($vendorEmail === '') {
+            throw ValidationException::withMessages([
+                'vendor' => ['Vendor email not found.'],
+            ]);
+        }
+
+        $orderForMail = Orders::query()
+            ->with(['application.vendor', 'application.events.event'])
+            ->where('order_id', $order->order_id)
+            ->first() ?? $order;
+
+        $items = OrderItems::query()
+            ->where('order_id', $orderForMail->order_id)
+            ->where('is_active', true)
+            ->orderBy('created_at')
+            ->get(['order_item_id', 'quantity', 'price', 'item_description']);
+
+        $subtotal = (float) ($invoice->sub_total ?? $orderForMail->sub_total ?? $items->sum(fn($item) => (float) $item->price * (int) $item->quantity));
+        $discount = (float) ($invoice->discount_amount ?? $orderForMail->discount_price ?? 0);
+        $total = (float) ($invoice->invoice_amount ?? $orderForMail->total_price ?? max(0, $subtotal - $discount));
+
+        $charges = InvoiceCharges::query()
+            ->where('invoice_id', $invoice->invoice_id)
+            ->orderBy('sort_order')
+            ->orderBy('created_at')
+            ->get([
+                'charges_name',
+                'charges_type',
+                'charges_rate',
+                'charges_amount',
+                'sort_order',
+            ]);
+
+        if ($charges->isEmpty()) {
+            $charges = OrderCharges::query()
+                ->where('order_id', $orderForMail->order_id)
+                ->orderBy('sort_order')
+                ->orderBy('created_at')
+                ->get([
+                    'charges_name',
+                    'charges_type',
+                    'charges_rate',
+                    'charges_amount',
+                    'sort_order',
+                ]);
+        }
+
+        $eventName = $applicationModel?->events
+            ?->map(fn($ae) => $ae->event?->event_name)
+            ->filter()
+            ->values()
+            ->join(', ');
+
+        $pdf = Pdf::loadView('invoices.template', [
+            'order' => $orderForMail,
+            'invoice' => $invoice,
+            'application' => $applicationModel,
+            'vendor' => $vendorModel,
+            'items' => $items,
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'charges' => $charges,
+            'total' => $total,
+            'eventName' => $eventName,
+            'companyName' => (string) config('app.name', 'BonBon'),
+        ]);
+
+        $pdfBytes = (string) $pdf->output();
+        $invoiceNo = (string) ($invoice->invoice_no ?? 'Invoice');
+        $safeInvoiceNoForPath = (string) preg_replace('/[^A-Za-z0-9_-]/', '_', $invoiceNo);
+        if ($safeInvoiceNoForPath === '') {
+            $safeInvoiceNoForPath = 'invoice';
+        }
+
+        $storagePath = 'invoices/invoice_' . $safeInvoiceNoForPath . '_' . time() . '.pdf';
+        Storage::disk('local')->put($storagePath, $pdfBytes);
+        $invoice->update(['invoice_file' => $storagePath]);
+
+        $attachFileName = 'invoice_' . $invoiceNo . '.pdf';
+        $amountText = number_format((float) $total, 2, '.', ',');
+
+        Mail::to($vendorEmail)->send(
+            new InvoiceRequestedEmail(
+                vendorName: (string) ($vendorModel?->vendor_name ?? 'Vendor'),
+                applicationCode: (string) $application->application_code,
+                invoiceNo: $invoiceNo,
+                amount: $amountText,
+                pdfData: $pdfBytes,
+                fileName: $attachFileName,
+            ),
         );
 
         return redirect()->back();
