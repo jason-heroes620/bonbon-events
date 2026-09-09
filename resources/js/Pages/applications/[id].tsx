@@ -8,10 +8,12 @@ import type {
     MultiSelectOption,
 } from "@/components/ui/multi-select";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -133,6 +135,8 @@ export default function EditApplication({
         order?.discount_price != null ? String(order.discount_price) : "0",
     );
     const [showVendorModal, setShowVendorModal] = useState(false);
+    const [requestInvoiceOpen, setRequestInvoiceOpen] = useState(false);
+    const [requestingInvoice, setRequestingInvoice] = useState(false);
 
     const orderPaid = Boolean(order?.is_paid);
     const applicationApproved = application.application_status === "approved";
@@ -269,6 +273,12 @@ export default function EditApplication({
         currentTotalAmount - amountPaidValue,
     );
 
+    const invoiceAmountValue =
+        invoice?.invoice_amount ?? order?.total_price ?? calculatedTotalAmount;
+    const hasOrderBasis = Boolean(
+        order && !Number.isNaN(Number(order?.total_price)),
+    );
+
     return (
         <AuthenticatedLayout
             header={<h2 className="text-xl font-semibold">Applications</h2>}
@@ -375,36 +385,67 @@ export default function EditApplication({
                                 </div>
 
                                 {applicationStatus === "approved" ? (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            application.application_status !==
-                                            "approved"
-                                        }
-                                        onClick={() =>
-                                            router.post(
-                                                `/applications/${application.application_id}/send-payment-link`,
-                                                {},
-                                                {
-                                                    preserveScroll: true,
-                                                    onSuccess: () => {
-                                                        toast.success(
-                                                            "Payment link sent successfully.",
-                                                        );
+                                    <div className="flex flex-col items-end gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={
+                                                !applicationApproved ||
+                                                !hasOrderBasis ||
+                                                requestingInvoice
+                                            }
+                                            onClick={() => {
+                                                if (!applicationApproved) {
+                                                    toast.error(
+                                                        "Application must be approved before requesting an invoice.",
+                                                    );
+                                                    return;
+                                                }
+                                                if (!hasOrderBasis) {
+                                                    toast.error(
+                                                        "No order found for this application yet. Confirm booths first.",
+                                                    );
+                                                    return;
+                                                }
+                                                setRequestInvoiceOpen(true);
+                                            }}
+                                        >
+                                            {invoice
+                                                ? "Re-request Invoice"
+                                                : "Request Invoice"}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={
+                                                application.application_status !==
+                                                "approved"
+                                            }
+                                            onClick={() =>
+                                                router.post(
+                                                    `/applications/${application.application_id}/send-payment-link`,
+                                                    {},
+                                                    {
+                                                        preserveScroll: true,
+                                                        onSuccess: () => {
+                                                            toast.success(
+                                                                "Payment link sent successfully.",
+                                                            );
+                                                        },
+                                                        onError: () => {
+                                                            toast.error(
+                                                                "Failed to send payment link.",
+                                                            );
+                                                        },
                                                     },
-                                                    onError: () => {
-                                                        toast.error(
-                                                            "Failed to send payment link.",
-                                                        );
-                                                    },
-                                                },
-                                            )
-                                        }
-                                    >
-                                        Send Payment Link
-                                    </Button>
+                                                )
+                                            }
+                                        >
+                                            Send Payment Link
+                                        </Button>
+                                    </div>
                                 ) : null}
                             </div>
                         </div>
@@ -1127,6 +1168,135 @@ export default function EditApplication({
                             onClick={() => setShowVendorModal(false)}
                         >
                             Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={requestInvoiceOpen}
+                onOpenChange={(open) => {
+                    if (requestingInvoice) return;
+                    setRequestInvoiceOpen(open);
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {invoice ? "Re-request Invoice" : "Request Invoice"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Confirm to generate and send the invoice to the
+                            vendor email.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                            <div className="text-muted-foreground">Vendor</div>
+                            <div className="font-medium">
+                                {vendor.vendor_name ?? "-"}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-muted-foreground">
+                                Application
+                            </div>
+                            <div className="font-medium">
+                                {application.application_code}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-muted-foreground">
+                                Invoice Amount
+                            </div>
+                            <div className="font-semibold">
+                                {formatAmount(invoiceAmountValue)}
+                            </div>
+                        </div>
+                        {order ? (
+                            <div className="flex items-center justify-between">
+                                <div className="text-muted-foreground">
+                                    Payment Status
+                                </div>
+                                <div
+                                    className={cn(
+                                        "text-sm font-medium",
+                                        order.is_paid
+                                            ? "text-green-600"
+                                            : "text-red-600",
+                                    )}
+                                >
+                                    {order.is_paid ? "PAID" : "UNPAID"}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setRequestInvoiceOpen(false)}
+                            disabled={requestingInvoice}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={
+                                requestingInvoice ||
+                                !applicationApproved ||
+                                !hasOrderBasis
+                            }
+                            onClick={() => {
+                                if (!applicationApproved) {
+                                    toast.error(
+                                        "Application must be approved before requesting an invoice.",
+                                    );
+                                    return;
+                                }
+                                if (!hasOrderBasis) {
+                                    toast.error(
+                                        "No order found for this application yet. Confirm booths first.",
+                                    );
+                                    return;
+                                }
+                                setRequestingInvoice(true);
+                                router.post(
+                                    `/applications/${application.application_id}/request-invoice`,
+                                    {},
+                                    {
+                                        preserveScroll: true,
+                                        onSuccess: () => {
+                                            setRequestingInvoice(false);
+                                            setRequestInvoiceOpen(false);
+                                            toast.success(
+                                                "Invoice requested successfully.",
+                                            );
+                                            router.reload({
+                                                only: [
+                                                    "order",
+                                                    "invoice",
+                                                    "activityLogs",
+                                                ],
+                                            });
+                                        },
+                                        onError: () => {
+                                            setRequestingInvoice(false);
+                                            toast.error(
+                                                "Failed to request invoice. Please try again.",
+                                            );
+                                        },
+                                    },
+                                );
+                            }}
+                        >
+                            {requestingInvoice
+                                ? "Submitting..."
+                                : invoice
+                                  ? "Re-request"
+                                  : "Confirm"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

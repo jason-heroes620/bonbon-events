@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\ApplicationApprovedPaymentLink;
 use App\Mail\ApplicationPaymentReminderEmail;
 use App\Mail\ApplicationRejectedEmail;
+use App\Jobs\GenerateInvoicePdf;
 use App\Models\Applications;
 use App\Models\ApplicationBooths;
 use App\Models\ApplicationEvent;
@@ -790,12 +791,85 @@ class ApplicationsController extends Controller
 
         $invoice = $this->invoiceService->upsertInvoiceForOrder($order, $application);
 
+        if ((bool) $order->is_paid) {
+            $invoice->update([
+                'invoice_status' => 'paid',
+            ]);
+            GenerateInvoicePdf::dispatch($invoice, $order);
+        }
+
         $this->activityLogService->logActivity(
             applicationCode: $application->application_code,
             activityType: $existingInvoice ? 'Invoice Regenerated' : 'Invoice Generated',
             activityDescription: $existingInvoice
                 ? 'Invoice regenerated: ' . ($invoice->invoice_no ?? '')
                 : 'Invoice generated: ' . ($invoice->invoice_no ?? ''),
+            userId: (string) ($request->user()?->user_id ?? ''),
+        );
+
+        return redirect()->back();
+    }
+
+    public function requestInvoice(Request $request, Applications $application)
+    {
+        if (($application->application_status ?? null) !== 'approved') {
+            throw ValidationException::withMessages([
+                'application' => ['Application is not approved.'],
+            ]);
+        }
+
+        $order = Orders::query()
+            ->where('application_id', $application->application_id)
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$order) {
+            throw ValidationException::withMessages([
+                'order' => ['Order not found. Please confirm booths first.'],
+            ]);
+        }
+
+        $hasOrderItems = OrderItems::query()
+            ->where('order_id', $order->order_id)
+            ->where('is_active', true)
+            ->exists();
+
+        if (!$hasOrderItems) {
+            throw ValidationException::withMessages([
+                'order' => ['No order items found. Please confirm booths first.'],
+            ]);
+        }
+
+        $existingInvoice = Invoices::query()
+            ->where('order_id', $order->order_id)
+            ->orderByDesc('created_at')
+            ->first();
+
+        $invoice = DB::transaction(function () use ($order, $application) {
+            $result = $this->invoiceService->upsertInvoiceForOrder($order, $application);
+            if ((bool) $order->is_paid) {
+                $result->update([
+                    'invoice_status' => 'paid',
+                ]);
+            }
+            GenerateInvoicePdf::dispatch($result, $order);
+            return $result;
+        });
+
+        $activityType = ((bool) $order->is_paid)
+            ? ($existingInvoice ? 'Invoice Re-requested' : 'Invoice Requested')
+            : ($existingInvoice ? 'Invoice Regenerated' : 'Invoice Generated');
+        $activityDescription = sprintf(
+            '%s: %s',
+            $activityType,
+            (string) ($invoice->invoice_no ?? ''),
+        );
+
+        $this->activityLogService->logActivity(
+            applicationCode: $application->application_code,
+            activityType: $activityType,
+            activityDescription: $activityDescription,
             userId: (string) ($request->user()?->user_id ?? ''),
         );
 

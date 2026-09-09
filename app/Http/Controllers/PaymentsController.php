@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\InvoiceRequestedEmail;
 use App\Jobs\EnsurePaidInvoiceGenerated;
+use App\Jobs\GenerateInvoicePdf;
 use App\Models\ApplicationBooths;
 use App\Models\ApplicationEvent;
 use App\Models\Applications;
@@ -443,6 +444,129 @@ class PaymentsController extends Controller
             throw ValidationException::withMessages([
                 'application' => ['Application is not approved.'],
             ]);
+        }
+
+        $baseOrder = Orders::query()
+            ->where('application_id', $application->application_id)
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($baseOrder && $baseOrder->is_paid) {
+            $invoice = DB::transaction(function () use ($baseOrder, $application) {
+                $resultInvoice = $this->invoiceService->upsertInvoiceForOrder($baseOrder, $application);
+                $resultInvoice->update([
+                    'invoice_status' => 'paid',
+                ]);
+                GenerateInvoicePdf::dispatch($resultInvoice, $baseOrder);
+                return $resultInvoice;
+            });
+
+            if (!$invoice) {
+                throw ValidationException::withMessages([
+                    'invoice' => ['Invoice not found.'],
+                ]);
+            }
+
+            $orderForMail = Orders::query()
+                ->with(['application.vendor', 'application.events.event'])
+                ->where('order_id', $invoice->order_id)
+                ->first();
+
+            if (!$orderForMail) {
+                throw ValidationException::withMessages([
+                    'order' => ['Order not found.'],
+                ]);
+            }
+
+            $items = OrderItems::query()
+                ->where('order_id', $orderForMail->order_id)
+                ->where('is_active', true)
+                ->orderBy('created_at')
+                ->get([
+                    'order_item_id',
+                    'quantity',
+                    'price',
+                    'item_description',
+                ]);
+
+            $subtotal = (float) $items->sum(fn($item) => (float) $item->price * (int) $item->quantity);
+            $discount = (float) ($invoice->discount_amount ?? $orderForMail->discount_price ?? 0);
+            $total = (float) ($invoice->invoice_amount ?? $orderForMail->total_price ?? max(0, $subtotal - $discount));
+
+            $charges = InvoiceCharges::query()
+                ->where('invoice_id', $invoice->invoice_id)
+                ->orderBy('sort_order')
+                ->orderBy('created_at')
+                ->get([
+                    'charges_name',
+                    'charges_type',
+                    'charges_rate',
+                    'charges_amount',
+                    'sort_order',
+                ]);
+
+            if ($charges->isEmpty()) {
+                $charges = OrderCharges::query()
+                    ->where('order_id', $orderForMail->order_id)
+                    ->orderBy('sort_order')
+                    ->orderBy('created_at')
+                    ->get([
+                        'charges_name',
+                        'charges_type',
+                        'charges_rate',
+                        'charges_amount',
+                        'sort_order',
+                    ]);
+            }
+
+            $applicationModel = $orderForMail->application;
+            $vendorModel = $applicationModel?->vendor;
+            $eventName = $applicationModel?->events
+                ?->map(fn($ae) => $ae->event?->event_name)
+                ->filter()
+                ->values()
+                ->join(', ');
+
+            $pdf = Pdf::loadView('invoices.template', [
+                'order' => $orderForMail,
+                'invoice' => $invoice,
+                'application' => $applicationModel,
+                'vendor' => $vendorModel,
+                'items' => $items,
+                'subtotal' => $subtotal,
+                'discount' => $discount,
+                'charges' => $charges,
+                'total' => $total,
+                'eventName' => $eventName,
+                'companyName' => (string) config('app.name', 'BonBon'),
+            ]);
+
+            $vendorEmail = (string) ($vendorModel?->vendor_email ?? '');
+            if ($vendorEmail === '') {
+                throw ValidationException::withMessages([
+                    'vendor' => ['Vendor email not found.'],
+                ]);
+            }
+
+            $invoiceNo = (string) ($invoice->invoice_no ?? 'Invoice');
+            $fileName = 'invoice_' . $invoiceNo . '.pdf';
+            $amountText = number_format((float) $total, 2, '.', ',');
+
+            Mail::to($vendorEmail)->send(
+                new InvoiceRequestedEmail(
+                    vendorName: (string) ($vendorModel?->vendor_name ?? 'Vendor'),
+                    applicationCode: (string) $application->application_code,
+                    invoiceNo: $invoiceNo,
+                    amount: $amountText,
+                    pdfData: $pdf->output(),
+                    fileName: $fileName,
+                ),
+            );
+
+            return redirect()
+                ->back()
+                ->with('success', 'Invoice has been sent to your email.');
         }
 
         $validated = $request->validate([

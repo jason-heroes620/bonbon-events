@@ -168,6 +168,9 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::post('/applications/{application}/send-payment-reminder', [ApplicationsController::class, 'sendPaymentReminder'])
         ->middleware('throttle:6,1')
         ->name('applications.send-payment-reminder');
+    Route::post('/applications/{application}/request-invoice', [ApplicationsController::class, 'requestInvoice'])
+        ->middleware('throttle:6,1')
+        ->name('applications.request-invoice');
     Route::put('/applications/{application}', [ApplicationsController::class, 'update'])->name('applications.update');
     Route::delete('/applications/{application}', [ApplicationsController::class, 'destroy'])->name('applications.destroy');
 
