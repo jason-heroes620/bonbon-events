@@ -33,6 +33,7 @@ return new class extends Migration
                 $table->tinyInteger('participants')->default(1);
                 $table->tinyInteger('no_of_booths')->default(1);
                 $table->text('requirements')->nullable();
+                $table->text('products')->nullable();
                 $table->boolean('plug')->default(false);
                 $table->enum('application_status', ['pending', 'approved', 'rejected', 'cancelled'])->default('pending');
                 $table->timestamps();

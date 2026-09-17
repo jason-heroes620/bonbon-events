@@ -45,6 +45,7 @@ type DraftRow = {
     participants: number;
     no_of_booths: number;
     requirements: string;
+    products: string;
     plug: boolean;
 };
 
@@ -73,6 +74,7 @@ export default function EventDetail({
         participants: 1,
         no_of_booths: 1,
         requirements: "",
+        products: "",
         plug: false,
     });
     const [rows, setRows] = useState<DraftRow[]>([]);
@@ -110,6 +112,12 @@ export default function EventDetail({
     const handleAdd = () => {
         if (!draft.event_id) return;
         if (draft.participants < 1 || draft.no_of_booths < 1) return;
+        if (draft.products.trim() === "") {
+            toast.error(
+                "Please list the products that you plan to sell before adding the event.",
+            );
+            return;
+        }
 
         const exists = rows.some((r) => r.event_id === draft.event_id);
         if (exists) {
@@ -122,6 +130,7 @@ export default function EventDetail({
             {
                 ...draft,
                 requirements: draft.requirements.trim(),
+                products: draft.products.trim(),
             },
         ]);
     };
@@ -154,6 +163,7 @@ export default function EventDetail({
                         r.requirements.trim() === ""
                             ? null
                             : r.requirements.trim(),
+                    products: r.products.trim(),
                     plug: r.plug,
                 })),
                 agree_terms: true,
@@ -466,6 +476,25 @@ export default function EventDetail({
                                         setDraft((prev) => ({
                                             ...prev,
                                             requirements: e.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-sm font-medium">
+                                    List products that you plan to sell{" "}
+                                    <span className="text-red-600">*</span>
+                                </label>
+                                <textarea
+                                    className={cn(selectClassName, "h-24")}
+                                    value={draft.products}
+                                    disabled={submitting}
+                                    placeholder="E.g. Homemade cookies, coffee beans, custom stickers."
+                                    onChange={(e) =>
+                                        setDraft((prev) => ({
+                                            ...prev,
+                                            products: e.target.value,
                                         }))
                                     }
                                 />

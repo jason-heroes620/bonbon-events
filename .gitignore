@@ -30,3 +30,4 @@ Thumbs.db
 .env*
 *.zip
 public/build/*
+.trae/*

@@ -180,25 +180,28 @@ export default function ApplicationsIndex({
 
                 <div className="rounded-lg border bg-white">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full table-fixed text-sm">
                             <thead className="border-b bg-muted/40">
                                 <tr>
-                                    <th className="px-4 py-3 text-left font-medium">
+                                    <th className="w-32 px-4 py-3 text-left font-medium">
                                         Application Code
                                     </th>
-                                    <th className="px-4 py-3 text-left font-medium">
+                                    <th className="w-20 px-4 py-3 text-left font-medium">
                                         Vendor
                                     </th>
-                                    <th className="px-4 py-3 text-left font-medium">
+                                    <th className="w-52 px-4 py-3 text-left font-medium">
                                         Events
                                     </th>
-                                    <th className="px-4 py-3 text-left font-medium">
-                                        Payment Status
+                                    <th className="min-w-[220px] px-4 py-3 text-left font-medium">
+                                        Products
                                     </th>
-                                    <th className="px-4 py-3 text-left font-medium">
+                                    <th className="w-28 px-4 py-3 text-left font-medium">
+                                        Payment
+                                    </th>
+                                    <th className="w-20 px-4 py-3 text-left font-medium">
                                         Status
                                     </th>
-                                    <th className="px-4 py-3 text-right font-medium">
+                                    <th className="w-20 px-4 py-3 text-right font-medium">
                                         Actions
                                     </th>
                                 </tr>
@@ -207,7 +210,7 @@ export default function ApplicationsIndex({
                                 {applications.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={6}
+                                            colSpan={7}
                                             className="px-4 py-8 text-center text-muted-foreground"
                                         >
                                             No applications found.
@@ -217,16 +220,16 @@ export default function ApplicationsIndex({
                                     applications.data.map((application) => (
                                         <tr
                                             key={application.application_id}
-                                            className="border-b last:border-b-0"
+                                            className="border-b last:border-b-0 align-top"
                                         >
-                                            <td className="px-4 py-3 font-medium">
+                                            <td className="px-4 py-3 text-xs">
                                                 {application.application_code}
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
                                                 {application.vendor
                                                     ?.vendor_name ?? ""}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground">
+                                            <td className="px-4 py-3 text-muted-foreground text-xs">
                                                 {(application.events ?? [])
                                                     .map(
                                                         (e) =>
@@ -237,15 +240,62 @@ export default function ApplicationsIndex({
                                                     .filter(Boolean)
                                                     .join(", ")}
                                             </td>
+                                            <td className="px-4 py-3 align-top">
+                                                <div
+                                                    className={cn(
+                                                        "whitespace-pre-wrap break-words text-muted-foreground text-xs",
+                                                    )}
+                                                >
+                                                    {(application.events ?? [])
+                                                        .map((e) => {
+                                                            const products = (
+                                                                e as any
+                                                            )?.products as
+                                                                | string
+                                                                | null
+                                                                | undefined;
+                                                            const eventName =
+                                                                e.event
+                                                                    ?.event_name ??
+                                                                "";
+                                                            const text =
+                                                                products &&
+                                                                String(
+                                                                    products,
+                                                                ).trim() !== ""
+                                                                    ? String(
+                                                                          products,
+                                                                      ).trim()
+                                                                    : "-";
+                                                            if (
+                                                                (
+                                                                    application.events ??
+                                                                    []
+                                                                ).length <= 1
+                                                            ) {
+                                                                return text;
+                                                            }
+                                                            return `${
+                                                                eventName
+                                                                    ? `${eventName}: `
+                                                                    : ""
+                                                            }${text}`;
+                                                        })
+                                                        .filter((value) =>
+                                                            Boolean(value),
+                                                        )
+                                                        .join("\n\n") || "-"}
+                                                </div>
+                                            </td>
 
                                             <td className="px-4 py-3">
                                                 {application.order?.is_paid ===
                                                 true ? (
-                                                    <span className="text-emerald-800 ">
+                                                    <span className="text-emerald-800 text-xs">
                                                         Paid
                                                     </span>
                                                 ) : (
-                                                    <span className="text-red-800">
+                                                    <span className="text-red-800 text-xs">
                                                         Unpaid
                                                     </span>
                                                 )}
@@ -253,21 +303,21 @@ export default function ApplicationsIndex({
                                             <td className="px-4 py-3">
                                                 {application.application_status ===
                                                 "pending" ? (
-                                                    <span className="text-yellow-800">
+                                                    <span className="text-yellow-800 text-xs">
                                                         Pending
                                                     </span>
                                                 ) : application.application_status ===
                                                   "approved" ? (
-                                                    <span className="text-emerald-800">
+                                                    <span className="text-emerald-800 text-xs">
                                                         Approved
                                                     </span>
                                                 ) : application.application_status ===
                                                   "cancelled" ? (
-                                                    <span className="text-red-800">
+                                                    <span className="text-red-800 text-xs">
                                                         Cancelled
                                                     </span>
                                                 ) : (
-                                                    <span className="text-red-800">
+                                                    <span className="text-red-800 text-xs">
                                                         Rejected
                                                     </span>
                                                 )}

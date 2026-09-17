@@ -21,6 +21,7 @@ class ApplicationEvent extends Model
         'participants',
         'no_of_booths',
         'requirements',
+        'products',
         'plug',
         'application_status',
     ];
@@ -44,4 +45,3 @@ class ApplicationEvent extends Model
         return 'application_event_id';
     }
 }
-

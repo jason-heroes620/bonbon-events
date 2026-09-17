@@ -49,6 +49,7 @@ class ApplicationsController extends Controller
             'participants' => ['required', 'integer', 'min:1', 'max:127'],
             'no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
             'requirements' => ['nullable', 'string', 'max:1000'],
+            'products' => ['required', 'string', 'min:1', 'max:2000'],
             'plug' => ['nullable', 'boolean'],
         ]);
 
@@ -115,6 +116,7 @@ class ApplicationsController extends Controller
             'participants' => $validated['participants'],
             'no_of_booths' => $validated['no_of_booths'],
             'requirements' => $validated['requirements'] ?? null,
+            'products' => $validated['products'],
             'plug' => (bool) ($validated['plug'] ?? false),
             'application_status' => 'approved',
         ]);
@@ -134,6 +136,7 @@ class ApplicationsController extends Controller
             'events.*.participants' => ['required', 'integer', 'min:1', 'max:127'],
             'events.*.no_of_booths' => ['required', 'integer', 'min:1', 'max:127'],
             'events.*.requirements' => ['nullable', 'string', 'max:1000'],
+            'events.*.products' => ['required', 'string', 'min:1', 'max:2000'],
             'events.*.plug' => ['nullable', 'boolean'],
             'agree_terms' => ['accepted'],
         ]);
@@ -219,6 +222,7 @@ class ApplicationsController extends Controller
                     'participants' => $eventData['participants'],
                     'no_of_booths' => $eventData['no_of_booths'],
                     'requirements' => $eventData['requirements'] ?? null,
+                    'products' => $eventData['products'],
                     'plug' => (bool) ($eventData['plug'] ?? false),
                     'application_status' => 'approved',
                 ]);

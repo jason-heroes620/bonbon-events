@@ -15,6 +15,14 @@ import type {
 } from "@/types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 type EventFormData = {
@@ -186,6 +194,20 @@ export default function EventForm({
     const [selectedBoothIds, setSelectedBoothIds] = useState<string[]>([]);
     const [boothPrice, setBoothPrice] = useState<string>("");
 
+    type EditBoothPriceTarget = {
+        mode: "single";
+        booth_id: string;
+        booth_type_id: string;
+        initialPrice: string;
+    } | null;
+    const [editBoothPriceOpen, setEditBoothPriceOpen] = useState(false);
+    const [editBoothPriceTarget, setEditBoothPriceTarget] =
+        useState<EditBoothPriceTarget>(null);
+    const [editBoothPriceValue, setEditBoothPriceValue] = useState<string>("");
+    const [editBoothPriceApplyType, setEditBoothPriceApplyType] = useState<
+        "single" | "all_in_type"
+    >("single");
+
     const availableBoothsForType = useMemo(() => {
         if (!selectedBoothType) return [];
         return booths.filter((b) => b.booth_type_id === selectedBoothType);
@@ -271,6 +293,110 @@ export default function EventForm({
         });
 
         form.setData("booths", sorted);
+    };
+
+    const handleOpenEditBoothPrice = (booth_id: string) => {
+        const eventBooth = form.data.booths.find(
+            (eb) => eb.booth_id === booth_id,
+        );
+        if (!eventBooth) return;
+        const booth = booths.find((b) => b.booth_id === booth_id);
+        const booth_type_id = booth?.booth_type_id ?? "";
+        const initialPrice =
+            typeof eventBooth.booth_price === "number"
+                ? eventBooth.booth_price.toFixed(2)
+                : String(eventBooth.booth_price ?? "");
+
+        setEditBoothPriceTarget({
+            mode: "single",
+            booth_id,
+            booth_type_id,
+            initialPrice,
+        });
+        setEditBoothPriceValue(initialPrice);
+        setEditBoothPriceApplyType("single");
+        setEditBoothPriceOpen(true);
+    };
+
+    const handleSubmitEditBoothPrice = () => {
+        const target = editBoothPriceTarget;
+        if (!target) return;
+        if (!editBoothPriceValue) return;
+
+        const numericPrice = Number(editBoothPriceValue);
+        if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+            toast.error("Please enter a valid booth price.");
+            return;
+        }
+
+        const nextPrice = editBoothPriceValue;
+        const nameCollator = new Intl.Collator("en", {
+            numeric: true,
+            sensitivity: "base",
+        });
+
+        const sortBooths = (list: EventBooth[]) =>
+            [...list].sort((a, b) => {
+                const boothA = booths.find((x) => x.booth_id === a.booth_id);
+                const boothB = booths.find((x) => x.booth_id === b.booth_id);
+                const typeA = boothTypes.find(
+                    (t) => t.booth_type_id === boothA?.booth_type_id,
+                );
+                const typeB = boothTypes.find(
+                    (t) => t.booth_type_id === boothB?.booth_type_id,
+                );
+
+                const typeNameA = typeA?.booth_type_name ?? "";
+                const typeNameB = typeB?.booth_type_name ?? "";
+                if (typeNameA !== typeNameB) {
+                    return typeNameA.localeCompare(typeNameB);
+                }
+
+                const nameA = boothA?.booth_name ?? "";
+                const nameB = boothB?.booth_name ?? "";
+                return nameCollator.compare(nameA, nameB);
+            });
+
+        if (editBoothPriceApplyType === "single") {
+            const nextBooths = form.data.booths.map((eb) => {
+                if (eb.booth_id !== target.booth_id) return eb;
+                return {
+                    ...eb,
+                    booth_price: nextPrice,
+                };
+            });
+            form.setData("booths", sortBooths(nextBooths));
+            toast.success("Booth price updated.");
+        } else {
+            const targetBoothIds = new Set(
+                form.data.booths
+                    .map((eb) => {
+                        const b = booths.find(
+                            (x) => x.booth_id === eb.booth_id,
+                        );
+                        if (!b) return null;
+                        if (b.booth_type_id !== target.booth_type_id)
+                            return null;
+                        return eb.booth_id;
+                    })
+                    .filter((id): id is string => Boolean(id)),
+            );
+            const nextBooths = form.data.booths.map((eb) => {
+                if (!targetBoothIds.has(eb.booth_id)) return eb;
+                return {
+                    ...eb,
+                    booth_price: nextPrice,
+                };
+            });
+            form.setData("booths", sortBooths(nextBooths));
+            toast.success(
+                `Updated ${targetBoothIds.size} booth${targetBoothIds.size === 1 ? "" : "s"} for the same booth type. Click save to apply.`,
+            );
+        }
+
+        setEditBoothPriceOpen(false);
+        setEditBoothPriceTarget(null);
+        setEditBoothPriceValue("");
     };
 
     const boothsPerPage = 10;
@@ -453,7 +579,7 @@ export default function EventForm({
                                 form.setData("event_start_date", e.target.value)
                             }
                             aria-invalid={Boolean(form.errors.event_start_date)}
-                            min={new Date().toISOString().split("T")[0]}
+                            // min={new Date().toISOString().split("T")[0]}
                         />
                         {form.errors.event_start_date ? (
                             <p className="text-sm text-red-600">
@@ -722,9 +848,23 @@ export default function EventForm({
                         type="checkbox"
                         className="h-4 w-4 rounded border-input"
                         checked={form.data.require_deposit}
-                        onChange={(e) =>
-                            form.setData("require_deposit", e.target.checked)
-                        }
+                        onChange={(e) => {
+                            const nextChecked = e.target.checked;
+                            const wasRequired = form.data.require_deposit;
+                            if (wasRequired && !nextChecked) {
+                                const ok = window.confirm(
+                                    "You are turning OFF the deposit requirement for this event.\n\n" +
+                                        "If you continue, existing approved applications will no longer require a deposit, and pending applications cannot be charged a deposit unless you re-enable this.\n\n" +
+                                        "Are you sure you want to proceed?",
+                                );
+                                if (!ok) {
+                                    e.preventDefault();
+                                    e.target.checked = true;
+                                    return;
+                                }
+                            }
+                            form.setData("require_deposit", nextChecked);
+                        }}
                     />
                     <span className="text-sm">Require deposit</span>
                 </label>
@@ -896,19 +1036,34 @@ export default function EventForm({
                                                 ).toFixed(2)}
                                             </td>
                                             <td className="px-4 py-2 text-right">
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                                    onClick={() =>
-                                                        handleRemoveBooth(
-                                                            eventBooth.booth_id,
-                                                        )
-                                                    }
-                                                >
-                                                    Remove
-                                                </Button>
+                                                <div className="inline-flex items-center justify-end gap-1">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                                        onClick={() =>
+                                                            handleOpenEditBoothPrice(
+                                                                eventBooth.booth_id,
+                                                            )
+                                                        }
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                        onClick={() =>
+                                                            handleRemoveBooth(
+                                                                eventBooth.booth_id,
+                                                            )
+                                                        }
+                                                    >
+                                                        Remove
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -974,6 +1129,219 @@ export default function EventForm({
                     </div>
                 )}
             </div>
+
+            <Dialog
+                open={editBoothPriceOpen}
+                onOpenChange={(open) => {
+                    setEditBoothPriceOpen(open);
+                    if (!open) {
+                        setEditBoothPriceTarget(null);
+                        setEditBoothPriceValue("");
+                        setEditBoothPriceApplyType("single");
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Edit Booth Price</DialogTitle>
+                        <DialogDescription>
+                            Update the price for the selected booth, or apply
+                            the same price to all booths that share its booth
+                            type.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {(() => {
+                        const booth = editBoothPriceTarget
+                            ? booths.find(
+                                  (b) =>
+                                      b.booth_id ===
+                                      editBoothPriceTarget.booth_id,
+                              )
+                            : undefined;
+                        const boothType =
+                            booth && editBoothPriceTarget
+                                ? boothTypes.find(
+                                      (t) =>
+                                          t.booth_type_id ===
+                                          editBoothPriceTarget.booth_type_id,
+                                  )
+                                : undefined;
+                        const sameTypeCount = editBoothPriceTarget
+                            ? form.data.booths.filter((eb) => {
+                                  const b = booths.find(
+                                      (x) => x.booth_id === eb.booth_id,
+                                  );
+                                  return (
+                                      b?.booth_type_id ===
+                                      editBoothPriceTarget.booth_type_id
+                                  );
+                              }).length
+                            : 0;
+                        return (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 gap-3 rounded-md border p-3 text-sm md:grid-cols-2">
+                                    <div>
+                                        <div className="text-muted-foreground">
+                                            Booth Type
+                                        </div>
+                                        <div className="font-medium">
+                                            {boothType?.booth_type_name ?? "-"}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">
+                                            Booth
+                                        </div>
+                                        <div className="font-medium">
+                                            {booth?.booth_name ?? "-"}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">
+                                            Current Price
+                                        </div>
+                                        <div className="font-medium">
+                                            RM{" "}
+                                            {Number(
+                                                editBoothPriceTarget?.initialPrice ??
+                                                    0,
+                                            ).toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">
+                                            Booths in Same Type
+                                        </div>
+                                        <div className="font-medium">
+                                            {sameTypeCount}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                        New Price (RM)
+                                    </label>
+                                    <Input
+                                        autoFocus
+                                        type="number"
+                                        inputMode="decimal"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="0.00"
+                                        value={editBoothPriceValue}
+                                        onChange={(e) =>
+                                            setEditBoothPriceValue(
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-sm font-medium">
+                                        Apply Price To
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        <label
+                                            className={`flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm transition-colors ${
+                                                editBoothPriceApplyType ===
+                                                "single"
+                                                    ? "border-blue-500 bg-blue-50/60"
+                                                    : ""
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="edit-booth-price-apply"
+                                                value="single"
+                                                checked={
+                                                    editBoothPriceApplyType ===
+                                                    "single"
+                                                }
+                                                onChange={() =>
+                                                    setEditBoothPriceApplyType(
+                                                        "single",
+                                                    )
+                                                }
+                                            />
+                                            <div className="space-y-0.5">
+                                                <div className="font-medium">
+                                                    Only this booth
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Updates the selected booth
+                                                    price only.
+                                                </div>
+                                            </div>
+                                        </label>
+                                        <label
+                                            className={`flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm transition-colors ${
+                                                editBoothPriceApplyType ===
+                                                "all_in_type"
+                                                    ? "border-blue-500 bg-blue-50/60"
+                                                    : ""
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="edit-booth-price-apply"
+                                                value="all_in_type"
+                                                checked={
+                                                    editBoothPriceApplyType ===
+                                                    "all_in_type"
+                                                }
+                                                onChange={() =>
+                                                    setEditBoothPriceApplyType(
+                                                        "all_in_type",
+                                                    )
+                                                }
+                                            />
+                                            <div className="space-y-0.5">
+                                                <div className="font-medium">
+                                                    All booths in same type
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Apply to {sameTypeCount}{" "}
+                                                    booth
+                                                    {sameTypeCount === 1
+                                                        ? ""
+                                                        : "s"}
+                                                    {" ("}
+                                                    {boothType?.booth_type_name ??
+                                                        "-"}
+                                                    ).
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <DialogFooter className="gap-2 sm:gap-0">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                            setEditBoothPriceOpen(false)
+                                        }
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={handleSubmitEditBoothPrice}
+                                        disabled={
+                                            !editBoothPriceValue ||
+                                            !editBoothPriceTarget
+                                        }
+                                    >
+                                        {editBoothPriceApplyType === "single"
+                                            ? "Update Booth Price"
+                                            : "Update All in Type"}
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
 
             <hr />
             <div>

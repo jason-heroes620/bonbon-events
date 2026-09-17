@@ -348,8 +348,12 @@ class EventsController extends Controller
             'venue' => $validated['venue'] ?? null,
             'event_start_date' => $validated['event_start_date'],
             'event_end_date' => $validated['event_end_date'],
-            'require_deposit' => (bool) ($validated['require_deposit'] ?? true),
-            'is_active' => (bool) ($validated['is_active'] ?? true),
+            'require_deposit' => array_key_exists('require_deposit', $validated)
+                ? (bool) $validated['require_deposit']
+                : true,
+            'is_active' => array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : true,
         ]);
 
         if ($request->hasFile('event_booth_layouts')) {
@@ -366,12 +370,29 @@ class EventsController extends Controller
             ]);
         }
 
-        if ($validated['require_deposit'] ?? false) {
-            $deposit = Deposits::query()->find($validated['deposit_id']);
-            EventDeposits::create([
-                'event_id' => $event->event_id,
-                'deposit_id' => $deposit->deposit_id,
-            ]);
+        $nextRequiresDepositCreate = array_key_exists('require_deposit', $validated)
+            ? (bool) $validated['require_deposit']
+            : true;
+        $nextDepositIdCreate = $validated['deposit_id'] ?? null;
+
+        if ($nextRequiresDepositCreate && empty($nextDepositIdCreate)) {
+            return redirect()
+                ->back()
+                ->withErrors([
+                    'deposit_id' =>
+                    'Please select an active deposit when requiring a deposit for this event.',
+                ])
+                ->withInput();
+        }
+
+        if ($nextRequiresDepositCreate && !empty($nextDepositIdCreate)) {
+            $deposit = Deposits::query()->find($nextDepositIdCreate);
+            if ($deposit) {
+                EventDeposits::create([
+                    'event_id' => $event->event_id,
+                    'deposit_id' => $deposit->deposit_id,
+                ]);
+            }
         }
 
         if (!empty($validated['booths'])) {
@@ -458,6 +479,32 @@ class EventsController extends Controller
             'booths.*.booth_price' => ['required', 'numeric', 'min:0'],
         ]);
 
+        $wasRequiringDeposit = (bool) $event->require_deposit;
+        $nextRequiresDeposit = array_key_exists('require_deposit', $validated)
+            ? (bool) $validated['require_deposit']
+            : $wasRequiringDeposit;
+
+        $nextDepositId = $validated['deposit_id'] ?? null;
+
+        if ($nextRequiresDeposit && empty($nextDepositId)) {
+            $eventDeposit = EventDeposits::query()
+                ->where('event_id', $event->event_id)
+                ->first(['deposit_id']);
+            if ($eventDeposit?->deposit_id) {
+                $nextDepositId = $eventDeposit->deposit_id;
+            }
+        }
+
+        if ($nextRequiresDeposit && empty($nextDepositId)) {
+            return redirect()
+                ->back()
+                ->withErrors([
+                    'deposit_id' =>
+                    'Please select an active deposit when requiring a deposit for this event.',
+                ])
+                ->withInput();
+        }
+
         $event->update([
             'event_name' => $validated['event_name'],
             'event_description' => $validated['event_description'] ?? null,
@@ -467,8 +514,10 @@ class EventsController extends Controller
             'venue' => $validated['venue'] ?? null,
             'event_start_date' => $validated['event_start_date'],
             'event_end_date' => $validated['event_end_date'],
-            'require_deposit' => (bool) ($validated['require_deposit'] ?? false),
-            'is_active' => (bool) ($validated['is_active'] ?? false),
+            'require_deposit' => $nextRequiresDeposit,
+            'is_active' => array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : (bool) $event->is_active,
         ]);
 
         $removedLayoutImageIds = $validated['removed_layout_image_ids'] ?? [];
@@ -490,12 +539,23 @@ class EventsController extends Controller
             ]);
         }
 
-        if ($validated['require_deposit'] ?? false) {
-            $deposit = Deposits::query()->find($validated['deposit_id']);
-            EventDeposits::create([
-                'event_id' => $event->event_id,
-                'deposit_id' => $deposit->deposit_id,
-            ]);
+        if ($nextRequiresDeposit && !empty($nextDepositId)) {
+            EventDeposits::query()->upsert(
+                [
+                    [
+                        'event_id' => $event->event_id,
+                        'deposit_id' => $nextDepositId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                ],
+                ['event_id'],
+                ['deposit_id', 'updated_at'],
+            );
+        } elseif (!$nextRequiresDeposit && $wasRequiringDeposit) {
+            EventDeposits::query()
+                ->where('event_id', $event->event_id)
+                ->delete();
         }
 
         $existingBooths = EventBooths::query()->where('event_id', $event->event_id)->get();
