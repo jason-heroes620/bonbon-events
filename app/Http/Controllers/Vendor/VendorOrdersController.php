@@ -12,6 +12,7 @@ use App\Models\Payments;
 use App\Models\Vendors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -99,6 +100,7 @@ class VendorOrdersController extends Controller
                 'discount_amount',
                 'invoice_amount',
                 'invoice_status',
+                'invoice_file',
             ]);
 
         $items = OrderItems::query()
@@ -159,6 +161,50 @@ class VendorOrdersController extends Controller
             'charges' => $charges,
             'payment' => $payment,
         ]);
+    }
+
+    public function downloadInvoice(Orders $order, Request $request)
+    {
+        $vendorId = $this->vendorIdOrFail($request);
+
+        $applicationVendorId = Applications::query()
+            ->where('application_id', $order->application_id)
+            ->value('vendor_id');
+
+        if ($applicationVendorId !== $vendorId) {
+            abort(403);
+        }
+
+        $invoice = Invoices::query()
+            ->where('order_id', $order->order_id)
+            ->orderByDesc('created_at')
+            ->first([
+                'invoice_id',
+                'invoice_no',
+                'invoice_file',
+            ]);
+
+        if (!$invoice || !is_string($invoice->invoice_file) || $invoice->invoice_file === '') {
+            abort(404);
+        }
+
+        if (!Storage::disk('local')->exists($invoice->invoice_file)) {
+            abort(404);
+        }
+
+        $invoiceNo = (string) ($invoice->invoice_no ?? 'invoice');
+        $safeInvoiceNo = (string) preg_replace('/[^A-Za-z0-9_-]/', '_', $invoiceNo);
+        if ($safeInvoiceNo === '') {
+            $safeInvoiceNo = 'invoice';
+        }
+
+        return Storage::disk('local')->download(
+            $invoice->invoice_file,
+            'invoice_' . $safeInvoiceNo . '.pdf',
+            [
+                'Content-Type' => 'application/pdf',
+            ],
+        );
     }
 
     private function vendorIdOrFail(Request $request): string

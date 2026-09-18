@@ -69,6 +69,9 @@ Route::middleware(['auth', 'verified', EnsureVendorAccess::class])
         Route::get('/orders/{order}', [VendorOrdersController::class, 'show'])
             ->whereUuid('order')
             ->name('vendor.orders.show');
+        Route::get('/orders/{order}/download-invoice', [VendorOrdersController::class, 'downloadInvoice'])
+            ->whereUuid('order')
+            ->name('vendor.orders.download-invoice');
         Route::get('/sales', [VendorSalesController::class, 'index'])
             ->name('vendor.sales.index');
         Route::post('/sales', [VendorSalesController::class, 'store'])

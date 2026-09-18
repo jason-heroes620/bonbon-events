@@ -25,6 +25,7 @@ type Invoice = {
     discount_amount: number | string;
     invoice_amount: number | string;
     invoice_status: string;
+    invoice_file: string | null;
 } | null;
 
 type OrderItem = {
@@ -296,11 +297,25 @@ export default function VendorOrderShow({
                 </div>
 
                 <div className="rounded-lg border bg-white p-4">
-                    <div className="text-sm font-medium">Invoice</div>
-                    <div className="text-sm text-muted-foreground">
-                        {invoice
-                            ? `${invoice.invoice_no} (${invoice.invoice_status})`
-                            : "Not generated"}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className="text-sm font-medium">Invoice</div>
+                            <div className="text-sm text-muted-foreground">
+                                {invoice
+                                    ? `${invoice.invoice_no} (${invoice.invoice_status})`
+                                    : "Not generated"}
+                            </div>
+                        </div>
+                        {invoice?.invoice_file ? (
+                            <a
+                                href={`/vendor/orders/${order.order_id}/download-invoice`}
+                                className={buttonVariants({
+                                    variant: "outline",
+                                })}
+                            >
+                                Download Invoice
+                            </a>
+                        ) : null}
                     </div>
                 </div>
 
