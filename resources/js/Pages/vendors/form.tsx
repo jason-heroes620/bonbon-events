@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import type { Category, User, Vendor } from "@/types";
 import type { FormEvent } from "react";
 import { MultiSelect } from "@/components/ui/multi-select";
-import axios from "axios";
 import { toast } from "sonner";
 
 type VendorFormData = {
@@ -29,6 +28,9 @@ type VendorFormData = {
     vendor_bank_account_name?: string;
     is_active: boolean;
     vendor_status: string;
+    return_search?: string;
+    return_status?: string;
+    return_page?: string;
 };
 
 type VendorFormProps = {
@@ -39,6 +41,7 @@ type VendorFormProps = {
     method: "post" | "put";
     submitLabel: string;
     cancelUrl: string;
+    returnParams?: Record<string, string>;
 };
 
 const textareaClassName =
@@ -55,6 +58,7 @@ export default function VendorForm({
     method,
     submitLabel,
     cancelUrl,
+    returnParams = {},
 }: VendorFormProps) {
     const defaultCategory = Array.isArray(vendor?.category)
         ? vendor?.category
@@ -88,6 +92,9 @@ export default function VendorForm({
         vendor_bank_account_name: vendor?.vendor_bank_account_name ?? "",
         is_active: vendor?.is_active ?? true,
         vendor_status: vendor?.vendor_status ?? "",
+        return_search: returnParams.return_search ?? "",
+        return_status: returnParams.return_status ?? "",
+        return_page: returnParams.return_page ?? "",
     });
 
     const submit = (e: FormEvent) => {
@@ -105,7 +112,7 @@ export default function VendorForm({
         if (!confirm("Are you sure you want to approve this vendor?")) {
             return;
         }
-        router.post(`${submitUrl}/approve`, undefined, {
+        router.post(`${submitUrl}/approve`, returnParams, {
             preserveScroll: true,
             onSuccess: () => {
                 toast.success("Vendor approved successfully");
@@ -121,7 +128,7 @@ export default function VendorForm({
         if (!confirm("Are you sure you want to reject this vendor?")) {
             return;
         }
-        router.post(`${submitUrl}/reject`, undefined, {
+        router.post(`${submitUrl}/reject`, returnParams, {
             preserveScroll: true,
             onSuccess: () => {
                 toast.success("Vendor rejected successfully");

@@ -25,8 +25,63 @@ type VendorsPageProps = {
     vendors: Paginated<Vendor>;
     filters: {
         search?: string;
+        status?: "all" | "pending" | "approved" | "rejected";
+        page?: number;
     };
 };
+
+type ListParams = {
+    search?: string;
+    status?: VendorsPageProps["filters"]["status"];
+    page?: number;
+};
+
+const STATUS_OPTIONS: Array<{
+    value: VendorsPageProps["filters"]["status"];
+    label: string;
+}> = [
+    { value: "all", label: "All Statuses" },
+    { value: "pending", label: "Pending" },
+    { value: "approved", label: "Approved" },
+    { value: "rejected", label: "Rejected" },
+];
+
+function normalizeStatus(
+    raw: string | null | undefined,
+): VendorsPageProps["filters"]["status"] {
+    if (raw === "pending" || raw === "approved" || raw === "rejected") {
+        return raw;
+    }
+    return "all";
+}
+
+function buildListParams(params: ListParams): Record<string, string> {
+    const search =
+        typeof params.search === "string" && params.search.trim() !== ""
+            ? params.search
+            : undefined;
+    const status =
+        params.status && params.status !== "all" ? params.status : undefined;
+    const page =
+        typeof params.page === "number" &&
+        Number.isFinite(params.page) &&
+        params.page > 1
+            ? params.page
+            : undefined;
+
+    const result: Record<string, string> = {};
+    if (search) result.search = search;
+    if (status) result.status = status;
+    if (page) result.page = String(page);
+    return result;
+}
+
+function buildVendorsUrl(params: ListParams): string {
+    const clean = buildListParams(params);
+    const query = new URLSearchParams(clean);
+    const queryString = query.toString();
+    return queryString ? `/vendors?${queryString}` : "/vendors";
+}
 
 function Pagination({ links }: { links: PaginationLink[] }) {
     if (!links?.length) return null;
@@ -69,6 +124,9 @@ function Pagination({ links }: { links: PaginationLink[] }) {
 
 export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
     const [search, setSearch] = useState(filters.search ?? "");
+    const [status, setStatus] = useState<VendorsPageProps["filters"]["status"]>(
+        normalizeStatus(filters.status),
+    );
     const didMountRef = useRef(false);
 
     useEffect(() => {
@@ -80,27 +138,35 @@ export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
         const timeout = window.setTimeout(() => {
             router.get(
                 "/vendors",
-                { search: search.trim() === "" ? undefined : search },
+                buildListParams({
+                    search,
+                    status,
+                }),
                 { preserveScroll: true, preserveState: true, replace: true },
             );
         }, 300);
 
         return () => window.clearTimeout(timeout);
-    }, [search]);
+    }, [search, status]);
 
     const stats = useMemo(() => {
         if (vendors.total === 0) return "No vendors";
         return `Showing ${vendors.from ?? 0}–${vendors.to ?? 0} of ${vendors.total}`;
     }, [vendors.from, vendors.to, vendors.total]);
 
-    const handleDelete = (vendor: Vendor) => {
-        const confirmed = window.confirm(
-            `Delete vendor "${vendor.vendor_name}"?`,
-        );
-        if (!confirmed) return;
+    const currentPage = vendors.current_page ?? 1;
 
-        router.delete(`/vendors/${vendor.vendor_id}`, { preserveScroll: true });
-    };
+    const returnParams = buildListParams({
+        search,
+        status,
+        page: currentPage,
+    });
+    const queryString = new URLSearchParams(returnParams).toString();
+
+    const vendorEditUrl = (vendorId: string) =>
+        queryString
+            ? `/vendors/${vendorId}?${queryString}`
+            : `/vendors/${vendorId}`;
 
     return (
         <AuthenticatedLayout
@@ -115,27 +181,62 @@ export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
                         <p className="text-sm text-muted-foreground">{stats}</p>
                     </div>
 
-                    <Link href="/vendors/create" className={buttonVariants()}>
+                    <Link
+                        href={buildVendorsUrl({})}
+                        className={buttonVariants()}
+                    >
                         Create Vendor
                     </Link>
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex w-full max-w-md items-center gap-2">
-                        <Input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search vendors..."
-                        />
-                        {search.trim() !== "" ? (
-                            <Button
-                                variant="outline"
-                                type="button"
-                                onClick={() => setSearch("")}
-                            >
-                                Clear
-                            </Button>
-                        ) : null}
+                    <div className="flex w-full flex-wrap items-center gap-2">
+                        <div className="flex flex-1 max-w-md items-center gap-2">
+                            <Input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search vendors..."
+                            />
+                            {search.trim() !== "" || status !== "all" ? (
+                                <Button
+                                    variant="outline"
+                                    type="button"
+                                    onClick={() => {
+                                        setSearch("");
+                                        setStatus("all");
+                                        router.get(
+                                            "/vendors",
+                                            {},
+                                            {
+                                                preserveScroll: true,
+                                                preserveState: true,
+                                                replace: true,
+                                            },
+                                        );
+                                    }}
+                                >
+                                    Clear
+                                </Button>
+                            ) : null}
+                        </div>
+
+                        <select
+                            className={cn(
+                                "h-10 w-44 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring",
+                            )}
+                            value={status}
+                            onChange={(e) =>
+                                setStatus(
+                                    normalizeStatus(e.currentTarget.value),
+                                )
+                            }
+                        >
+                            {STATUS_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 
@@ -168,7 +269,7 @@ export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
                                 {vendors.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={5}
+                                            colSpan={6}
                                             className="px-4 py-8 text-center text-muted-foreground"
                                         >
                                             No vendors found.
@@ -212,19 +313,27 @@ export default function VendorsIndex({ vendors, filters }: VendorsPageProps) {
                                                         vendor.vendor_status ===
                                                             "approved"
                                                             ? "bg-emerald-100 text-emerald-800"
-                                                            : "bg-gray-100 text-gray-800",
+                                                            : vendor.vendor_status ===
+                                                                "rejected"
+                                                              ? "bg-red-100 text-red-800"
+                                                              : "bg-yellow-100 text-yellow-800",
                                                     )}
                                                 >
                                                     {vendor.vendor_status ===
                                                     "approved"
                                                         ? "Approved"
-                                                        : "Pending"}
+                                                        : vendor.vendor_status ===
+                                                            "rejected"
+                                                          ? "Rejected"
+                                                          : "Pending"}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex justify-end gap-2">
                                                     <Link
-                                                        href={`/vendors/${vendor.vendor_id}`}
+                                                        href={vendorEditUrl(
+                                                            vendor.vendor_id,
+                                                        )}
                                                         className={buttonVariants(
                                                             {
                                                                 variant:

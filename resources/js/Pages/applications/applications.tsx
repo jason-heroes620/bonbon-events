@@ -186,10 +186,10 @@ export default function ApplicationsIndex({
                                     <th className="w-32 px-4 py-3 text-left font-medium">
                                         Application Code
                                     </th>
-                                    <th className="w-20 px-4 py-3 text-left font-medium">
+                                    <th className="w-48 px-4 py-3 text-left font-medium">
                                         Vendor
                                     </th>
-                                    <th className="w-52 px-4 py-3 text-left font-medium">
+                                    <th className="w-48 px-4 py-3 text-left font-medium">
                                         Events
                                     </th>
                                     <th className="min-w-[220px] px-4 py-3 text-left font-medium">

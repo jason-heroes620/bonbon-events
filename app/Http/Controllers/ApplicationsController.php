@@ -268,6 +268,7 @@ class ApplicationsController extends Controller
             ->withQueryString();
 
         $events = Events::query()
+            ->where('is_active', true)
             ->orderByDesc('event_start_date')
             ->get(['event_id', 'event_name']);
 

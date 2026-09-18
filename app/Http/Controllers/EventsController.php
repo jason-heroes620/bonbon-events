@@ -51,6 +51,7 @@ class EventsController extends Controller
 
         $events = Events::query()
             ->with(['layoutImages'])
+            ->where('is_active', true)
             ->orderByDesc('event_start_date')
             ->get(['event_id', 'event_name', 'event_start_date'])
             ->map(function (Events $event) {

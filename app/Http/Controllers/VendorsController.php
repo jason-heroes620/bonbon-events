@@ -149,9 +149,16 @@ class VendorsController extends Controller
     public function index(Request $request): Response
     {
         $search = $request->string('search')->toString();
+        $rawStatus = $request->string('status')->toString();
+        $vendorStatus = in_array($rawStatus, ['pending', 'approved', 'rejected'], true)
+            ? $rawStatus
+            : null;
 
         $vendors = Vendors::query()
             ->with(['user:user_id,name,email'])
+            ->when($vendorStatus !== null, function ($query) use ($vendorStatus) {
+                $query->where('vendor_status', $vendorStatus);
+            })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('vendor_name', 'like', "%{$search}%")
@@ -162,6 +169,14 @@ class VendorsController extends Controller
                         ->orWhere('category', 'like', "%{$search}%");
                 });
             })
+            ->orderByRaw("
+                CASE vendor_status
+                    WHEN 'pending' THEN 1
+                    WHEN 'approved' THEN 2
+                    WHEN 'rejected' THEN 3
+                    ELSE 4
+                END
+            ")
             ->orderBy('vendor_name')
             ->paginate(10)
             ->withQueryString();
@@ -170,6 +185,7 @@ class VendorsController extends Controller
             'vendors' => $vendors,
             'filters' => [
                 'search' => $search,
+                'status' => $vendorStatus ?? 'all',
             ],
         ]);
     }
@@ -236,7 +252,7 @@ class VendorsController extends Controller
         return redirect('/vendors');
     }
 
-    public function edit(Vendors $vendor): Response
+    public function edit(Request $request, Vendors $vendor): Response
     {
         $users = User::query()
             ->orderBy('name', 'asc')
@@ -253,6 +269,7 @@ class VendorsController extends Controller
             'vendor' => $vendor,
             'users' => $users,
             'categories' => $categories,
+            'return_to_vendors_query' => $this->buildReturnToVendorsQuery($request),
         ]);
     }
 
@@ -279,6 +296,9 @@ class VendorsController extends Controller
             'vendor_bank_account_no' => ['nullable', 'string', 'max:255'],
             'vendor_bank_account_name' => ['nullable', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
+            'return_search' => ['nullable', 'string', 'max:255'],
+            'return_status' => ['nullable', 'string', 'max:32'],
+            'return_page' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $vendor->update([
@@ -298,16 +318,20 @@ class VendorsController extends Controller
             'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 
-        return redirect('/vendors');
+        return redirect($this->buildReturnToVendorsUrlFromPayload($validated));
     }
 
-    public function destroy(Vendors $vendor)
+    public function destroy(Request $request, Vendors $vendor)
     {
         Vendors::query()
             ->where('vendor_id', $vendor->vendor_id)
             ->delete();
 
-        return redirect('/vendors');
+        return redirect($this->buildReturnToVendorsUrlFromPayload($request->only([
+            'return_search',
+            'return_status',
+            'return_page',
+        ])));
     }
 
     public function approve(Request $request, Vendors $vendor)
@@ -330,7 +354,11 @@ class VendorsController extends Controller
             report($e);
         }
 
-        return redirect()->back();
+        return redirect($this->buildReturnToVendorsUrlFromPayload($request->only([
+            'return_search',
+            'return_status',
+            'return_page',
+        ])));
     }
 
     public function reject(Request $request, Vendors $vendor)
@@ -350,6 +378,77 @@ class VendorsController extends Controller
             report($e);
         }
 
-        return redirect()->back();
+        return redirect($this->buildReturnToVendorsUrlFromPayload($request->only([
+            'return_search',
+            'return_status',
+            'return_page',
+        ])));
+    }
+
+    /**
+     * @return array{search:?string, status:?string, page:?int}
+     */
+    private function buildReturnToVendorsQuery(Request $request): array
+    {
+        $search = $request->query('search');
+        $status = $request->query('status');
+        $page = $request->query('page');
+
+        $searchNormalized = is_string($search) && trim($search) !== '' ? trim($search) : null;
+        $statusNormalized = is_string($status) && in_array($status, ['pending', 'approved', 'rejected'], true)
+            ? $status
+            : null;
+        $pageNormalized = null;
+        if (is_numeric($page)) {
+            $pageInt = (int) $page;
+            if ($pageInt > 1) {
+                $pageNormalized = $pageInt;
+            }
+        }
+
+        return [
+            'search' => $searchNormalized,
+            'status' => $statusNormalized,
+            'page' => $pageNormalized,
+        ];
+    }
+
+    /**
+     * @param array{return_search?:mixed, return_status?:mixed, return_page?:mixed} $payload
+     */
+    private function buildReturnToVendorsUrlFromPayload(array $payload): string
+    {
+        $search = $payload['return_search'] ?? null;
+        $status = $payload['return_status'] ?? null;
+        $page = $payload['return_page'] ?? null;
+
+        $searchNormalized = is_string($search) && trim($search) !== '' ? trim($search) : null;
+        $statusNormalized = is_string($status) && in_array($status, ['pending', 'approved', 'rejected'], true)
+            ? $status
+            : null;
+        $pageNormalized = null;
+        if (is_numeric($page)) {
+            $pageInt = (int) $page;
+            if ($pageInt > 1) {
+                $pageNormalized = $pageInt;
+            }
+        }
+
+        $query = [];
+        if ($searchNormalized !== null) {
+            $query['search'] = $searchNormalized;
+        }
+        if ($statusNormalized !== null) {
+            $query['status'] = $statusNormalized;
+        }
+        if ($pageNormalized !== null) {
+            $query['page'] = $pageNormalized;
+        }
+
+        if (count($query) === 0) {
+            return '/vendors';
+        }
+
+        return '/vendors?' . http_build_query($query);
     }
 }

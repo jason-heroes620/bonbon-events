@@ -24,6 +24,7 @@ class DepositRefundController extends Controller
         $selectedEventId = $request->string('event_id')->toString();
 
         $events = Events::query()
+            ->where('is_active', true)
             ->orderBy('event_start_date', 'asc')
             ->orderBy('event_name', 'asc')
             ->get([
