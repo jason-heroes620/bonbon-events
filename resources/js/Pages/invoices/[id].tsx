@@ -212,10 +212,12 @@ export default function InvoiceShow({
                             Payment Date
                         </div>
                         <div className="text-sm">
-                            {formatDate(
-                                payment?.payment_date ?? "",
-                                "MMM d, yyyy",
-                            )}
+                            {payment?.payment_date
+                                ? formatDate(
+                                      payment?.payment_date,
+                                      "MMM d, yyyy",
+                                  )
+                                : ""}
                         </div>
                     </div>
                 </div>
