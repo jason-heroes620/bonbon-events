@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Jobs\EnsurePaidInvoiceGenerated;
 use App\Models\ApplicationBooths;
+use App\Models\ApplicationEvent;
 use App\Models\Applications;
+use App\Models\Charges;
 use App\Models\EventBooths;
+use App\Models\EventDeposits;
 use App\Models\Invoices;
 use App\Models\OrderItems;
 use App\Models\Orders;
@@ -272,6 +275,116 @@ class PaymentController extends Controller
             ->where('application_id', $order->application_id)
             ->first();
 
+        $applicationEvents = ApplicationEvent::query()
+            ->leftJoin('events', 'application_events.event_id', '=', 'events.event_id')
+            ->where('application_events.application_id', $application->application_id)
+            ->where('application_events.application_status', 'approved')
+            ->orderBy('events.event_start_date', 'asc')
+            ->orderBy('events.event_name', 'asc')
+            ->get([
+                'application_events.application_event_id',
+                'application_events.application_id',
+                'application_events.event_id',
+                'application_events.participants',
+                'application_events.no_of_booths',
+                'application_events.requirements',
+                'application_events.plug',
+                'events.event_name',
+                'events.event_start_date',
+                'events.require_deposit',
+            ]);
+
+        $depositAmountsByEventId = EventDeposits::query()
+            ->leftJoin('deposits', 'event_deposits.deposit_id', '=', 'deposits.deposit_id')
+            ->whereIn('event_deposits.event_id', $applicationEvents->pluck('event_id')->unique()->values()->all())
+            ->where('event_deposits.event_deposit_status', 'active')
+            ->orderByDesc('event_deposits.created_at')
+            ->get(['event_deposits.event_id', 'deposits.deposit_amount'])
+            ->groupBy('event_id')
+            ->map(fn($rows) => (string) ($rows->first()->deposit_amount ?? '0'));
+
+        $selectedBoothsByApplicationEventId = ApplicationBooths::query()
+            ->whereIn('application_event_id', $applicationEvents->pluck('application_event_id')->all(), 'and', false)
+            ->where('is_active', true)
+            ->get(['application_event_id', 'booth_id'])
+            ->groupBy('application_event_id')
+            ->map(fn($rows) => $rows->pluck('booth_id')->filter()->values());
+
+        $eventBoothsByEventId = EventBooths::query()
+            ->leftJoin('booths', 'event_booths.booth_id', '=', 'booths.booth_id')
+            ->leftJoin('booth_types', 'booths.booth_type_id', '=', 'booth_types.booth_type_id')
+            ->whereIn('event_booths.event_id', $applicationEvents->pluck('event_id')->unique()->values()->all(), 'and', false)
+            ->where('event_booths.is_active', true)
+            ->orderBy('booth_types.booth_type_name')
+            ->orderByRaw('LENGTH(booths.booth_name) ASC, booths.booth_name ASC')
+            ->get([
+                'event_booths.event_booth_id',
+                'event_booths.event_id',
+                'event_booths.booth_id',
+                'event_booths.booth_price',
+                'event_booths.occupied',
+                'event_booths.occupied_by_application_event_id',
+                'booths.booth_name',
+                'booths.booth_type_id',
+                'booth_types.booth_type_name',
+            ])
+            ->groupBy('event_id');
+
+        $applicationEventsView = $applicationEvents->map(function ($row) use ($depositAmountsByEventId, $selectedBoothsByApplicationEventId, $eventBoothsByEventId) {
+            $selectedBoothIds = $selectedBoothsByApplicationEventId->get($row->application_event_id) ?? collect();
+            $selectedEventBoothIds = EventBooths::query()
+                ->where('event_id', $row->event_id)
+                ->whereIn('booth_id', $selectedBoothIds)
+                ->pluck('event_booth_id')
+                ->values();
+
+            $eventBooths = $eventBoothsByEventId->get($row->event_id) ?? collect();
+            $requiresDeposit = (bool) ($row->require_deposit ?? false);
+
+            return [
+                'application_event_id' => $row->application_event_id,
+                'event_id' => $row->event_id,
+                'event_name' => $row->event_name,
+                'event_start_date' => $row->event_start_date,
+                'require_deposit' => $requiresDeposit,
+                'deposit_amount' => $requiresDeposit ? ($depositAmountsByEventId->get($row->event_id) ?? '0') : '0',
+                'participants' => $row->participants,
+                'no_of_booths' => $row->no_of_booths,
+                'requirements' => $row->requirements ?? '',
+                'plug' => (bool) ($row->plug ?? false),
+                'event_booths' => $eventBooths->values(),
+                'selected_event_booth_ids' => $selectedEventBoothIds,
+            ];
+        });
+
+        $charges = Charges::activeForDate()
+            ->map(fn($c) => $c->only([
+                'charges_id',
+                'charges_name',
+                'charges_type',
+                'charges_rate',
+                'sort_order',
+            ]))
+            ->values();
+
+        if ($order && $order->is_paid) {
+            return Inertia::render('payments/[code]', [
+                'application' => $application->only([
+                    'application_id',
+                    'application_code',
+                    'application_status',
+                    'vendor_name',
+                ]),
+                'order' => $order,
+                'invoice' => $invoice,
+                'items' => $items,
+                'charges' => $charges,
+                'applicationEvents' => $applicationEventsView,
+                'ipay88' => [
+                    'enabled' => $this->ipay88MerchantCode() !== '' && $this->ipay88MerchantKey() !== '',
+                ],
+            ]);
+        }
         // Return a view instead of a redirect
         return Inertia::render('payments/[application_code]', [
             'application' => $application->only([
@@ -280,9 +393,9 @@ class PaymentController extends Controller
                 'application_status',
                 'vendor_name',
             ]),
-            'order' => $order,
-            'invoice' => $invoice,
             'items' => $items,
+            'charges' => $charges,
+            'applicationEvents' => $applicationEventsView,
             'ipay88' => [
                 'disabled' => true,
             ],
