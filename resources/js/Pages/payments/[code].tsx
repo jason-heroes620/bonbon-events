@@ -238,7 +238,6 @@ export default function OrderShow({
             <div className="container mx-auto md:max-w-3xl px-4 py-8">
                 <div className="space-y-4">
                     <div>
-                        <h2 className="font-semibold">Make Payment</h2>
                         <div className="text-sm text-muted-foreground">
                             Application Code {application.application_code}
                         </div>

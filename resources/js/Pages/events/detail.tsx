@@ -385,7 +385,7 @@ export default function EventDetail({
                     setApplyOpen(next);
                 }}
             >
-                <DialogContent className="sm:max-w-3xl">
+                <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-auto">
                     <DialogHeader>
                         <DialogTitle>Apply for Events</DialogTitle>
                         <div className="text-sm text-muted-foreground">

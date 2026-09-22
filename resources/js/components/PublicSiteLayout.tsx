@@ -329,6 +329,15 @@ export default function PublicSiteLayout({
                                 </p>
                             ) : null}
                         </div>
+                        <div className="flex justify-end">
+                            <Link
+                                href="/vendor/forgot-password"
+                                className="text-sm text-muted-foreground hover:underline"
+                                onClick={() => setShowLoginModal(false)}
+                            >
+                                Forgot password?
+                            </Link>
+                        </div>
                     </div>
 
                     <DialogFooter>
@@ -345,13 +354,6 @@ export default function PublicSiteLayout({
                         </div>
 
                         <div className="flex flex-col items-end gap-2">
-                            <Link
-                                href="/vendor/forgot-password"
-                                className="text-sm text-muted-foreground hover:underline"
-                                onClick={() => setShowLoginModal(false)}
-                            >
-                                Forgot password?
-                            </Link>
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
