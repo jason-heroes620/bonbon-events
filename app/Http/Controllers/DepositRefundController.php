@@ -350,13 +350,12 @@ class DepositRefundController extends Controller
                 ->leftJoin('order_items', 'orders.order_id', '=', 'order_items.order_id')
                 ->where('application_code', $row->application_code)
                 ->where('order_items.item_description', 'like', "Deposit - %{$event->event_name}%")
-                ->select('order_items.price')
-                ->first()
-                ->price;
+                // ->select('order_items.price')
+                // ->first()
+                // ->price;
+                ->value('order_items.price');
 
-            if (!$deposit) {
-                $deposit = 0.0;
-            }
+            $deposit ??= 0.0; 
 
             return [
                 'application_id' => $row->application_id,
