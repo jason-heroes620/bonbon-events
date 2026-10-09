@@ -50,6 +50,7 @@ export type Booth = {
 export type EventBooth = {
     booth_id: string;
     booth_price: number | string;
+    occupied_by_vendor?: string | null;
 };
 
 export type EventLayoutImage = {

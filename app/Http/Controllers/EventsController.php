@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApplicationEvent;
 use App\Models\Deposits;
 use App\Models\EventDeposits;
 use App\Models\EventBooths;
@@ -111,6 +112,7 @@ class EventsController extends Controller
                 ->orderBy('booth_types.booth_type_name', 'asc')
                 ->orderBy('booths.booth_name', 'asc')
                 ->get([
+                    'event_booths.event_booth_id as event_booth_id',
                     'booth_types.booth_type_id as booth_type_id',
                     'booth_types.booth_type_name as booth_type_name',
                     'booths.booth_id as booth_id',
@@ -130,6 +132,7 @@ class EventsController extends Controller
                         'booth_type_name' => $first->booth_type_name,
                         'booths' => $items->map(function ($row) {
                             return [
+                                'event_booth_id' => $row->event_booth_id,
                                 'booth_id' => $row->booth_id,
                                 'booth_name' => $row->booth_name,
                                 'occupied' => (bool) $row->occupied,
@@ -442,7 +445,16 @@ class EventsController extends Controller
 
         $eventBooths = EventBooths::query()
             ->where('event_id', $event->event_id)
-            ->get(['booth_id', 'booth_price']);
+            ->get(['booth_id', 'booth_price', 'occupied_by_application_event_id']);
+        foreach ($eventBooths as $booth) {
+            if($booth->occupied_by_application_event_id !== null)
+                $booth->occupied_by_vendor = ApplicationEvent::query()  
+                ->leftJoin('applications', 'application_events.application_id', '=', 'applications.application_id')
+                ->leftJoin('vendors', 'applications.vendor_id', '=', 'vendors.vendor_id')
+                ->where('application_event_id', $booth->occupied_by_application_event_id)
+                ->first()
+                ->vendor_name ?? '';
+        }
 
         $event->booths = $eventBooths;
         $event->layout_images = $this->serializeLayoutImages($event->layoutImages);
@@ -606,6 +618,22 @@ class EventsController extends Controller
             ->get(['event_id', 'event_name', 'event_date', 'event_time', 'venue', 'event_image', 'event_start_date']);
 
         return response()->json($events);
+    }
+
+    public function occupied(Request $request)
+    {
+        $validated = $request->validate([
+            'event_booth_id' => 'required|string',
+            'occupied' => 'required|boolean',
+        ]);
+
+        EventBooths::query()
+            ->where('event_booth_id', $validated['event_booth_id'])
+            ->update([
+                'occupied' => $validated['occupied'],
+            ]);
+
+        return redirect()->back()->with('success', "Booth status updated.");
     }
 
     private function serializeLayoutImages(iterable $images): array

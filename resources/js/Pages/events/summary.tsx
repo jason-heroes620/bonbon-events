@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 type EventOption = {
     event_id: string;
@@ -18,6 +19,7 @@ type EventOption = {
 };
 
 type BoothRow = {
+    event_booth_id: string;
     booth_id: string;
     booth_name: string;
     occupied: boolean;
@@ -76,6 +78,27 @@ export default function EventSummary({
         };
     }, [groups]);
 
+    const setOccupied = (eventBoothId: string, occupied: boolean) => {
+        if (confirm("Confirm to set booth status to occupied?")) {
+            router.post(
+                "/events/occupied",
+                {
+                    event_booth_id: eventBoothId,
+                    occupied,
+                },
+                {
+                    onSuccess: () => {
+                        router.reload();
+                        toast.success("Booth status updated.");
+                    },
+                    onError: () => {
+                        toast.error("Failed to update booth status.");
+                    },
+                    preserveScroll: true,
+                },
+            );
+        }
+    };
     return (
         <AuthenticatedLayout
             header={<h2 className="text-xl font-semibold">Event Summary</h2>}
@@ -298,9 +321,33 @@ export default function EventSummary({
                                                                         : "bg-gray-100 text-gray-800",
                                                                 )}
                                                             >
-                                                                {booth.occupied
-                                                                    ? "Occupied"
-                                                                    : "Available"}
+                                                                {booth.occupied ? (
+                                                                    "Occupied"
+                                                                ) : (
+                                                                    <div className="flex flex-row gap-4">
+                                                                        <Button
+                                                                            size={
+                                                                                "xs"
+                                                                            }
+                                                                            variant="default"
+                                                                            onClick={() => {
+                                                                                setOccupied(
+                                                                                    booth.event_booth_id,
+                                                                                    true,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            Set
+                                                                            As
+                                                                            Occupied
+                                                                        </Button>
+                                                                        <div className="flex items-center">
+                                                                            <span className="text-xs font-medium">
+                                                                                Available
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </span>
                                                             {booth.occupied ? (
                                                                 <span
@@ -330,6 +377,7 @@ export default function EventSummary({
                                                                     href={`/applications/${booth.application_id}`}
                                                                     className="underline"
                                                                 >
+                                                                    View
                                                                     Application
                                                                 </Link>
                                                             </div>

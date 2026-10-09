@@ -13,7 +13,7 @@ import type {
     EventBooth,
     EventLayoutImage,
 } from "@/types";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import {
     Dialog,
@@ -24,6 +24,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import axios from "axios";
 
 type EventFormData = {
     event_name: string;
@@ -70,6 +71,7 @@ export default function EventForm({
     submitLabel,
     cancelUrl,
 }: EventFormProps) {
+    console.log(event);
     const form = useForm<EventFormData>({
         event_name: event?.event_name ?? "",
         event_description: event?.event_description ?? "",
@@ -213,6 +215,41 @@ export default function EventForm({
         return booths.filter((b) => b.booth_type_id === selectedBoothType);
     }, [booths, selectedBoothType]);
 
+    const boothNameCollator = useMemo(
+        () =>
+            new Intl.Collator("en", {
+                numeric: true,
+                sensitivity: "base",
+            }),
+        [],
+    );
+
+    const sortEventBoothsByTypeThenName = useCallback(
+        <T extends { booth_id: string }>(entries: T[]): T[] => {
+            return [...entries].sort((a, b) => {
+                const boothA = booths.find((x) => x.booth_id === a.booth_id);
+                const boothB = booths.find((x) => x.booth_id === b.booth_id);
+                const typeA = boothTypes.find(
+                    (t) => t.booth_type_id === boothA?.booth_type_id,
+                );
+                const typeB = boothTypes.find(
+                    (t) => t.booth_type_id === boothB?.booth_type_id,
+                );
+
+                const typeNameA = typeA?.booth_type_name ?? "";
+                const typeNameB = typeB?.booth_type_name ?? "";
+                if (typeNameA !== typeNameB) {
+                    return typeNameA.localeCompare(typeNameB);
+                }
+
+                const nameA = boothA?.booth_name ?? "";
+                const nameB = boothB?.booth_name ?? "";
+                return boothNameCollator.compare(nameA, nameB);
+            });
+        },
+        [booths, boothTypes, boothNameCollator],
+    );
+
     const handleAddBooths = () => {
         if (selectedBoothIds.length === 0 || !boothPrice) return;
 
@@ -232,67 +269,48 @@ export default function EventForm({
             }
         });
 
-        const nameCollator = new Intl.Collator("en", {
-            numeric: true,
-            sensitivity: "base",
-        });
-
-        const sorted = [...currentBooths].sort((a, b) => {
-            const boothA = booths.find((x) => x.booth_id === a.booth_id);
-            const boothB = booths.find((x) => x.booth_id === b.booth_id);
-            const typeA = boothTypes.find(
-                (t) => t.booth_type_id === boothA?.booth_type_id,
-            );
-            const typeB = boothTypes.find(
-                (t) => t.booth_type_id === boothB?.booth_type_id,
-            );
-
-            const typeNameA = typeA?.booth_type_name ?? "";
-            const typeNameB = typeB?.booth_type_name ?? "";
-            if (typeNameA !== typeNameB) {
-                return typeNameA.localeCompare(typeNameB);
-            }
-
-            const nameA = boothA?.booth_name ?? "";
-            const nameB = boothB?.booth_name ?? "";
-            return nameCollator.compare(nameA, nameB);
-        });
-
-        form.setData("booths", sorted);
+        form.setData("booths", sortEventBoothsByTypeThenName(currentBooths));
         setSelectedBoothIds([]);
         setBoothPrice("");
     };
 
-    const handleRemoveBooth = (booth_id: string) => {
+    const handleRemoveBooth = async (booth_id: string) => {
+        let occupied: boolean | null = null;
+        let occupiedVendor: string | null = null;
+
+        try {
+            const response = await axios.get<{
+                occupied?: boolean;
+                occupied_by_vendor?: string | null;
+            }>(`/events/${event?.event_id}/booths/${booth_id}`);
+
+            occupied = response.data?.occupied ?? null;
+            occupiedVendor = response.data?.occupied_by_vendor ?? null;
+        } catch (err: unknown) {
+            const serverMsg =
+                axios.isAxiosError(err) && err.response
+                    ? (err.response?.data as { error?: string })?.error
+                    : undefined;
+            toast.error(
+                serverMsg ??
+                    "Unable to remove booth at this time. Please try again.",
+            );
+            return;
+        }
+
+        if (occupied) {
+            toast.error(
+                occupiedVendor
+                    ? `Unable to remove booth. It is already occupied by ${occupiedVendor}.`
+                    : "Unable to remove booth. It is already occupied.",
+            );
+            return;
+        }
+
         const nextBooths = form.data.booths.filter(
             (b) => b.booth_id !== booth_id,
         );
-        const nameCollator = new Intl.Collator("en", {
-            numeric: true,
-            sensitivity: "base",
-        });
-        const sorted = [...nextBooths].sort((a, b) => {
-            const boothA = booths.find((x) => x.booth_id === a.booth_id);
-            const boothB = booths.find((x) => x.booth_id === b.booth_id);
-            const typeA = boothTypes.find(
-                (t) => t.booth_type_id === boothA?.booth_type_id,
-            );
-            const typeB = boothTypes.find(
-                (t) => t.booth_type_id === boothB?.booth_type_id,
-            );
-
-            const typeNameA = typeA?.booth_type_name ?? "";
-            const typeNameB = typeB?.booth_type_name ?? "";
-            if (typeNameA !== typeNameB) {
-                return typeNameA.localeCompare(typeNameB);
-            }
-
-            const nameA = boothA?.booth_name ?? "";
-            const nameB = boothB?.booth_name ?? "";
-            return nameCollator.compare(nameA, nameB);
-        });
-
-        form.setData("booths", sorted);
+        form.setData("booths", sortEventBoothsByTypeThenName(nextBooths));
     };
 
     const handleOpenEditBoothPrice = (booth_id: string) => {
@@ -1001,6 +1019,9 @@ export default function EventForm({
                                     <th className="px-4 py-2 font-medium">
                                         Price
                                     </th>
+                                    <th className="px-4 py-2 font-medium">
+                                        Vendor
+                                    </th>
                                     <th className="px-4 py-2 text-right font-medium">
                                         Actions
                                     </th>
@@ -1034,6 +1055,10 @@ export default function EventForm({
                                                 {Number(
                                                     eventBooth.booth_price,
                                                 ).toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                {eventBooth.occupied_by_vendor ??
+                                                    "-"}
                                             </td>
                                             <td className="px-4 py-2 text-right">
                                                 <div className="inline-flex items-center justify-end gap-1">

@@ -574,6 +574,28 @@ class ApplicationsController extends Controller
             }
         }
 
+        // if application is cancelled, then set all application events to cancelled and set selected booth to null and event booths to null
+        if ($validated['application_status'] === 'cancelled') {
+            // set all application events to cancelled
+            ApplicationEvent::query()
+                ->where('application_id', $application->application_id)
+                ->update([
+                    'application_status' => $validated['application_status'],
+                ]);
+            $applicationEvents = ApplicationEvent::query()
+                ->where('application_id', $application->application_id)
+                ->get();
+
+            foreach ($applicationEvents as $applicationEvent) {
+                ApplicationBooths::query()
+                ->where('application_event_id', $applicationEvent->application_event_id)
+                ->update([
+                    'occupied' => false,
+                    'occupied_by_vendor' => null,
+                ]);
+            }       
+        }
+
         $application->update([
             'application_status' => $validated['application_status'],
         ]);

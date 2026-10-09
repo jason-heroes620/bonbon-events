@@ -5,6 +5,7 @@ use App\Http\Controllers\LocationsController;
 use App\Http\Controllers\BoothTypesController;
 use App\Http\Controllers\BoothsController;
 use App\Http\Controllers\EventsController;
+use App\Http\Controllers\EventBoothsController;
 use App\Http\Controllers\ApplicationsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepositController;
@@ -113,6 +114,7 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::get('/events/create', [EventsController::class, 'create'])->name('events.create');
     Route::post('/events', [EventsController::class, 'store'])->name('events.store');
     Route::get('/events/summary', [EventsController::class, 'summary'])->name('events.summary');
+    Route::post('/events/occupied', [EventsController::class, 'occupied'])->name('events.occupied');
     Route::get('/events/{event}', [EventsController::class, 'edit'])
         ->whereUuid('event')
         ->name('events.edit');
@@ -122,6 +124,8 @@ Route::middleware(['auth', 'verified', RejectVendorAccess::class])->group(functi
     Route::delete('/events/{event}', [EventsController::class, 'destroy'])
         ->whereUuid('event')
         ->name('events.destroy');
+        
+    Route::get('/events/{event}/booths/{booth}', [EventBoothsController::class, 'booth'])->name('events.booth');
 
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OrdersController::class, 'show'])->name('orders.show');
