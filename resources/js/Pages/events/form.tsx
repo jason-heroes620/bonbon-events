@@ -71,7 +71,6 @@ export default function EventForm({
     submitLabel,
     cancelUrl,
 }: EventFormProps) {
-    console.log(event);
     const form = useForm<EventFormData>({
         event_name: event?.event_name ?? "",
         event_description: event?.event_description ?? "",
