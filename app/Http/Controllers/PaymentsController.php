@@ -374,11 +374,11 @@ class PaymentsController extends Controller
                         && $row->occupied_by_application_event_id !== $applicationEvent->application_event_id;
                 });
 
-                if ($invalidOccupied) {
-                    throw ValidationException::withMessages([
-                        'selections' => ['One or more selected booths are no longer available.'],
-                    ]);
-                }
+                // if ($invalidOccupied) {
+                //     throw ValidationException::withMessages([
+                //         'selections' => ['One or more selected booths are no longer available.'],
+                //     ]);
+                // }
 
                 EventBooths::query()
                     ->where('occupied_by_application_event_id', $applicationEvent->application_event_id)
