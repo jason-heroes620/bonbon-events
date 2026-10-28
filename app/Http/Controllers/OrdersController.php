@@ -50,7 +50,8 @@ class OrdersController extends Controller
                 $query->where(function ($query) use ($search) {
                     $query->where('orders.order_no', 'like', "%{$search}%")
                         ->orWhere('orders.application_code', 'like', "%{$search}%")
-                        ->orWhere('invoices.invoice_no', 'like', "%{$search}%");
+                        ->orWhere('invoices.invoice_no', 'like', "%{$search}%")
+                        ->orWhere('vendors.vendor_name', 'like', "%{$search}%");
                 });
             })
             ->orderByDesc('orders.created_at')

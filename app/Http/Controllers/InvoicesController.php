@@ -30,7 +30,8 @@ class InvoicesController extends Controller
                 $query->where(function ($query) use ($search) {
                     $query->where('invoices.invoice_no', 'like', "%{$search}%")
                         ->orWhere('orders.order_no', 'like', "%{$search}%")
-                        ->orWhere('invoices.application_id', 'like', "%{$search}%");
+                        ->orWhere('invoices.application_id', 'like', "%{$search}%")
+                        ->orWhere('vendors.vendor_name', 'like', "%{$search}%");
                 });
             })
             ->orderByDesc('invoices.invoice_no')
