@@ -590,8 +590,8 @@ class ApplicationsController extends Controller
                 ApplicationBooths::query()
                 ->where('application_event_id', $applicationEvent->application_event_id)
                 ->update([
-                    'occupied' => false,
-                    'occupied_by_vendor' => null,
+                    'is_active' => false,
+                    'booth_id' => null,
                 ]);
             }       
         }
