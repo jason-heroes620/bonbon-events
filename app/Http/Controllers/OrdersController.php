@@ -71,7 +71,7 @@ class OrdersController extends Controller
                 'invoices.invoice_no as invoice_no',
                 'invoices.invoice_status as invoice_status',
                 'vendors.vendor_name as vendor_name',
-                'orders.order_status as order_status',
+                'orders.is_active as order_status',
             ])
             ->withQueryString();
 
