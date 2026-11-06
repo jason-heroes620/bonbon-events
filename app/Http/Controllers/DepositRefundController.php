@@ -222,33 +222,6 @@ class DepositRefundController extends Controller
         $depositAmount = $this->getDepositAmountForEvent($eventId);
         $rows = $this->getApprovedApplicationsForRefund($eventId, $depositAmount);
 
-        $refundsByApplicationCode = DepositRefunds::query()
-            ->whereIn('application_code', $rows->pluck('application_code')->filter()->unique()->values()->all(), 'and', false)
-            ->orderByDesc('created_at')
-            ->get([
-                'application_code',
-                'refund_status',
-            ])
-            ->unique('application_code')
-            ->keyBy('application_code');
-
-        return $rows->map(function ($row) use ($depositAmount, $refundsByApplicationCode) {
-
-            $refund = $refundsByApplicationCode->get((string) $row->application_code);
-            $refundStatus = $refund?->refund_status ?? '';
-
-            return [
-                'application_code' => (string) $row->application_code,
-                'vendor_name' => (string) ($row->vendor_name ?? ''),
-                'is_paid' => $isPaid ? 'PAID' : 'UNPAID',
-                'payment_amount' => number_format((float) ($row->payment_amount ?? 0), 2, '.', ''),
-                'vendor_bank_name' => (string) ($row->vendor_bank_name ?? ''),
-                'vendor_bank_account_name' => (string) ($row->vendor_bank_account_name ?? ''),
-                'vendor_bank_account_no' => (string) ($row->vendor_bank_account_no ?? ''),
-                'refund_status' => $refundStatus,
-            ];
-        });
-
         $safeEventName = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $event->event_name) ?: 'event';
         $fileName = 'deposit_refund_' . $safeEventName . '_' . now()->format('Ymd_His') . '.csv';
 
