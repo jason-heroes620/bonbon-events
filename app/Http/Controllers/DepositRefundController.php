@@ -226,13 +226,14 @@ class DepositRefundController extends Controller
             ->whereIn('application_code', $rows->pluck('application_code')->filter()->unique()->values()->all(), 'and', false)
             ->orderByDesc('created_at')
             ->get([
+                'application_code',
                 'refund_status',
             ])
             ->unique('application_code')
             ->keyBy('application_code');
 
         return $rows->map(function ($row) use ($depositAmount, $refundsByApplicationCode) {
-            $isPaid = (bool) ($row->is_paid ?? false);
+
             $refund = $refundsByApplicationCode->get((string) $row->application_code);
             $refundStatus = $refund?->refund_status ?? '';
 
