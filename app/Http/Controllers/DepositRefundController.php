@@ -222,6 +222,15 @@ class DepositRefundController extends Controller
         $depositAmount = $this->getDepositAmountForEvent($eventId);
         $rows = $this->getApprovedApplicationsForRefund($eventId, $depositAmount);
 
+        $refundsByApplicationCode = DepositRefunds::query()
+            ->whereIn('application_code', $rows->pluck('application_code')->filter()->unique()->values()->all(), 'and', false)
+            ->orderByDesc('created_at')
+            ->get([
+                'refund_status',
+            ])
+            ->unique('application_code')
+            ->keyBy('application_code');
+
         $safeEventName = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $event->event_name) ?: 'event';
         $fileName = 'deposit_refund_' . $safeEventName . '_' . now()->format('Ymd_His') . '.csv';
 
@@ -241,6 +250,7 @@ class DepositRefundController extends Controller
                 'Bank Name',
                 'Bank Account Name',
                 'Bank Account No',
+                'Refund Status',
             ]);
 
             foreach ($rows as $row) {
@@ -255,6 +265,7 @@ class DepositRefundController extends Controller
                     (string) ($row['vendor_bank_name'] ?? ''),
                     (string) ($row['vendor_bank_account_name'] ?? ''),
                     (string) ($row['vendor_bank_account_no'] ?? ''),
+                    (string) ($refundsByApplicationCode[$row['application_code']]?->refund_status ?? ''),
                 ]);
             }
 

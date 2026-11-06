@@ -30,6 +30,7 @@ class SalesReportController extends Controller
         }
 
         $events = DB::table('events')
+            ->where('is_active', true)
             ->orderBy('event_start_date')
             ->orderBy('event_name')
             ->get([

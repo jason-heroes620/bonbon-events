@@ -267,7 +267,14 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                                     "MMM d, y",
                                                 ) ?? "-"}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground">
+                                            <td
+                                                className={cn(
+                                                    "px-4 py-3 text-muted-foreground",
+                                                    order.is_active
+                                                        ? "bg-emerald-100 text-emerald-800"
+                                                        : "bg-amber-100 text-amber-800",
+                                                )}
+                                            >
                                                 {order.is_active
                                                     ? "Valid"
                                                     : "Invalid"}
