@@ -36,7 +36,6 @@ type OrderRow = {
     invoice_no?: string | null;
     invoice_status?: string | null;
     vendor_name?: string | null;
-    order_status?: boolean | null;
 };
 
 type OrdersPageProps = {
@@ -269,9 +268,9 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                                 ) ?? "-"}
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
-                                                {order.order_status === true
-                                                    ? "Active"
-                                                    : "Inactive"}
+                                                {order.is_active
+                                                    ? "Valid"
+                                                    : "Invalid"}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <Link
