@@ -166,9 +166,7 @@ export default function InvoicesIndex({
                                     <th className="px-4 py-3 text-left font-medium">
                                         Vendor
                                     </th>
-                                    <th className="px-4 py-3 text-left font-medium">
-                                        Status
-                                    </th>
+
                                     <th className="px-4 py-3 text-left font-medium">
                                         Subtotal
                                     </th>
@@ -177,6 +175,9 @@ export default function InvoicesIndex({
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
                                         Total
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Status
                                     </th>
                                     <th className="px-4 py-3 text-left font-medium">
                                         Invoice Date

@@ -36,6 +36,7 @@ type OrderRow = {
     invoice_no?: string | null;
     invoice_status?: string | null;
     vendor_name?: string | null;
+    order_status?: boolean | null;
 };
 
 type OrdersPageProps = {
@@ -181,6 +182,9 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                     <th className="px-4 py-3 text-left font-medium">
                                         Order Date
                                     </th>
+                                    <th className="px-4 py-3 text-left font-medium">
+                                        Order Status
+                                    </th>
                                     <th className="px-4 py-3 text-right font-medium">
                                         Actions
                                     </th>
@@ -263,6 +267,11 @@ export default function OrdersIndex({ orders, filters }: OrdersPageProps) {
                                                     order?.created_at,
                                                     "MMM d, y",
                                                 ) ?? "-"}
+                                            </td>
+                                            <td className="px-4 py-3 text-muted-foreground">
+                                                {order.order_status === true
+                                                    ? "Active"
+                                                    : "Inactive"}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <Link

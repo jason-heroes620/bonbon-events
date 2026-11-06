@@ -305,7 +305,7 @@ class DepositRefundController extends Controller
             ->where('application_events.event_id', $eventId)
             ->where('application_events.application_status', 'approved')
             ->where('orders.is_paid', true)
-            ->orderByDesc('application_events.created_at')
+            ->orderByDesc('vendors.vendor_name')
             ->get([
                 'application_events.application_event_id',
                 'applications.application_id',
